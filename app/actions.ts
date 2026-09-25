@@ -5,7 +5,7 @@ import { redirect } from "next/navigation";
 import { AgentGoal, AgentStatus, LeadStatus, MemberRole } from "@prisma/client";
 import { auth, signIn } from "@/auth";
 import { db } from "@/lib/db";
-import { AppError, UnauthorizedError, publicErrorMessage } from "@/lib/errors";
+import { AppError, ForbiddenError, UnauthorizedError, publicErrorMessage } from "@/lib/errors";
 import { assertAdmin, assertCanManageAgents, assertCanWrite, requireOrgContext } from "@/lib/tenant";
 import { registerWorkspace, updateMemberRole, createWorkspaceForUser } from "@/services/organization/organization.service";
 import { connectWhatsApp, sendHumanMessage } from "@/services/whatsapp/connect";
@@ -28,34 +28,30 @@ export async function registerAction(formData: FormData) {
   try {
     const parsed = z
       .object({
-        name: z.string().min(2),
-        email: z.string().email(),
-        password: z.string().min(8),
-        organizationName: z.string().min(2),
+        name: z.string().min(2, "Please enter your name"),
+        email: z.string().email("Please enter a valid email address"),
+        password: z.string().min(8, "Password must be at least 8 characters"),
+        confirmPassword: z.string().min(1, "Please confirm your password"),
+        organizationName: z.string().min(2, "Please name your workspace"),
+      })
+      .refine((v) => v.password === v.confirmPassword, {
+        message: "Passwords do not match",
+        path: ["confirmPassword"],
       })
       .parse({
         name: formData.get("name"),
         email: formData.get("email"),
         password: formData.get("password"),
+        confirmPassword: formData.get("confirmPassword"),
         organizationName: formData.get("organizationName"),
       });
     await registerWorkspace(parsed);
   } catch (error) {
     return fail(error);
   }
-  // signIn throws NEXT_REDIRECT on success — let it propagate. Any other
-  // failure (e.g. session write hiccup) still means the account WAS created,
-  // so send the user to login instead of showing a crash page.
-  try {
-    await signIn("credentials", {
-      email: String(formData.get("email")),
-      password: String(formData.get("password")),
-      redirectTo: "/dashboard",
-    });
-  } catch (error) {
-    if ((error as { digest?: string })?.digest?.startsWith("NEXT_REDIRECT")) throw error;
-    redirect("/login?created=1");
-  }
+  // Spec flow is Register → Login (no auto sign-in): the new user signs in
+  // explicitly so credentials are verified through the real auth provider.
+  redirect("/login?created=1");
 }
 
 export async function createWorkspaceAction(organizationName: string) {
@@ -69,16 +65,87 @@ export async function createWorkspaceAction(organizationName: string) {
   }
 }
 
-export async function loginAction(formData: FormData) {
+export async function createAdditionalWorkspaceAction(organizationName: string) {
   try {
-    await signIn("credentials", {
-      email: String(formData.get("email") || ""),
-      password: String(formData.get("password") || ""),
-      redirectTo: "/dashboard",
+    const session = await auth();
+    if (!session?.user?.id) throw new UnauthorizedError();
+    const org = await createWorkspaceForUser(session.user.id, organizationName, { allowMultiple: true });
+    return { ok: true as const, organizationId: org.id };
+  } catch (error) {
+    return fail(error);
+  }
+}
+
+export async function listMyWorkspacesAction() {
+  try {
+    const session = await auth();
+    if (!session?.user?.id) throw new UnauthorizedError();
+    const { listUserWorkspaces } = await import("@/services/organization/organization.service");
+    return { ok: true as const, workspaces: await listUserWorkspaces(session.user.id) };
+  } catch (error) {
+    return fail(error);
+  }
+}
+
+/**
+ * Verifies membership server-side and returns the verified org. The client
+ * then refreshes its JWT via `update()`; the jwt callback re-validates
+ * membership before accepting the switch (never trusts the browser).
+ */
+export async function switchWorkspaceAction(organizationId: string) {
+  try {
+    const session = await auth();
+    if (!session?.user?.id) throw new UnauthorizedError();
+    const membership = await db.organizationMember.findFirst({
+      where: { userId: session.user.id, organizationId },
+      select: { organizationId: true, role: true, organization: { select: { name: true } } },
     });
+    if (!membership) throw new ForbiddenError("You don't belong to that workspace");
+    return { ok: true as const, organizationId: membership.organizationId, role: membership.role };
+  } catch (error) {
+    return fail(error);
+  }
+}
+
+export async function completeOnboardingAction() {
+  try {
+    const ctx = await requireOrgContext();
+    await db.organization.update({
+      where: { id: ctx.organizationId },
+      data: { onboardingCompletedAt: new Date() },
+    });
+    await writeAuditLog({
+      organizationId: ctx.organizationId,
+      userId: ctx.userId,
+      action: "workspace.onboarding_completed",
+      entityType: "organization",
+      entityId: ctx.organizationId,
+    });
+    return { ok: true as const };
+  } catch (error) {
+    return fail(error);
+  }
+}
+
+export async function loginAction(formData: FormData) {
+  const email = String(formData.get("email") || "").toLowerCase().trim();
+  const password = String(formData.get("password") || "");
+  // Unknown account → explicit "not found" guidance (never auto-create).
+  try {
+    if (email) {
+      const existing = await db.user.findUnique({ where: { email }, select: { id: true } });
+      if (!existing) {
+        return { ok: false as const, code: "ACCOUNT_NOT_FOUND" as const, error: "Account not found" };
+      }
+    }
+  } catch {
+    // If the lookup itself fails, fall through to the real auth attempt.
+  }
+  try {
+    await signIn("credentials", { email, password, redirectTo: "/dashboard" });
   } catch (error) {
     if ((error as { digest?: string })?.digest?.startsWith("NEXT_REDIRECT")) throw error;
-    return fail(new AppError("Invalid email or password", "INVALID_LOGIN", 401));
+    return fail(new AppError("Incorrect password. Please try again.", "INVALID_LOGIN", 401));
   }
 }
 
@@ -98,6 +165,19 @@ export async function publishAgentAction(id: string) {
     const ctx = await requireOrgContext();
     assertCanManageAgents(ctx);
     return { ok: true as const, agent: await publishAgent(ctx.organizationId, ctx.userId, id) };
+  } catch (error) {
+    return fail(error);
+  }
+}
+
+export async function setAgentStatusAction(id: string, status: "ACTIVE" | "PAUSED" | "DRAFT") {
+  try {
+    const ctx = await requireOrgContext();
+    assertCanManageAgents(ctx);
+    if (status === "ACTIVE") {
+      return { ok: true as const, agent: await publishAgent(ctx.organizationId, ctx.userId, id) };
+    }
+    return { ok: true as const, agent: await updateAgent(ctx.organizationId, ctx.userId, id, { status }) };
   } catch (error) {
     return fail(error);
   }
@@ -225,6 +305,38 @@ export async function addManualKnowledgeAction(knowledgeBaseId: string, name: st
       content,
     });
     return { ok: true as const, doc };
+  } catch (error) {
+    return fail(error);
+  }
+}
+
+export async function deleteKnowledgeDocumentAction(documentId: string) {
+  try {
+    const ctx = await requireOrgContext();
+    assertCanManageAgents(ctx);
+    const { deleteDocument } = await import("@/services/knowledge/knowledge.service");
+    return { ok: true as const, ...(await deleteDocument(ctx.organizationId, ctx.userId, documentId)) };
+  } catch (error) {
+    return fail(error);
+  }
+}
+
+export async function retryKnowledgeDocumentAction(documentId: string) {
+  try {
+    const ctx = await requireOrgContext();
+    assertCanManageAgents(ctx);
+    const { retryDocument } = await import("@/services/knowledge/knowledge.service");
+    return { ok: true as const, ...(await retryDocument(ctx.organizationId, ctx.userId, documentId)) };
+  } catch (error) {
+    return fail(error);
+  }
+}
+
+export async function previewKnowledgeDocumentAction(documentId: string) {
+  try {
+    const ctx = await requireOrgContext();
+    const { getDocumentExcerpt } = await import("@/services/knowledge/knowledge.service");
+    return { ok: true as const, doc: await getDocumentExcerpt(ctx.organizationId, documentId) };
   } catch (error) {
     return fail(error);
   }

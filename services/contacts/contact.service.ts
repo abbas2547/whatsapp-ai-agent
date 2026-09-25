@@ -5,7 +5,9 @@ import { AppError } from "@/lib/errors";
 
 export const CONTACTS_PAGE_SIZE = 30;
 
-export async function listContacts(organizationId: string, query?: string, tag?: string, page = 1) {
+export type ContactSort = "recent" | "name" | "oldest";
+
+export async function listContacts(organizationId: string, query?: string, tag?: string, page = 1, sort: ContactSort = "recent") {
   return db.contact.findMany({
     where: {
       organizationId,
@@ -34,7 +36,7 @@ export async function listContacts(organizationId: string, query?: string, tag?:
       updatedAt: true,
       tags: { select: { tag: { select: { id: true, name: true } } } },
     },
-    orderBy: { updatedAt: "desc" },
+    orderBy: sort === "name" ? { name: "asc" } : sort === "oldest" ? { createdAt: "asc" } : { updatedAt: "desc" },
     take: CONTACTS_PAGE_SIZE,
     skip: (Math.max(1, page) - 1) * CONTACTS_PAGE_SIZE,
   });

@@ -32,6 +32,10 @@ export function cosineSimilarity(a: number[], b: number[]) {
   return dot / (Math.sqrt(na) * Math.sqrt(nb));
 }
 
+export function daysAgo(days: number): Date {
+  return new Date(Date.now() - days * 24 * 60 * 60 * 1000);
+}
+
 export function safeJson<T>(value: unknown, fallback: T): T {
   try {
     if (typeof value === "string") return JSON.parse(value) as T;

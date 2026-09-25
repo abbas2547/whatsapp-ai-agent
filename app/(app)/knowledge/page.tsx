@@ -3,9 +3,9 @@ import { requireSessionOrRedirect } from "@/app/actions";
 import { listKnowledgeBases } from "@/services/knowledge/knowledge.service";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { EmptyState, PageHeader } from "@/components/ui/badge";
-import { DocumentStatusBadge } from "@/components/status-badges";
 import { CreateKnowledgeBaseDialog } from "@/components/knowledge/create-kb-dialog";
 import { AddDocumentDialog } from "@/components/knowledge/add-doc-dialog";
+import { DocumentRowActions } from "@/components/knowledge/doc-actions";
 import { DebouncedSearch } from "@/components/ui/debounced-search";
 import { fmtDate } from "@/components/format";
 import { Database, FileText, Globe, CircleHelp, Package } from "lucide-react";
@@ -94,7 +94,7 @@ export default async function KnowledgePage({
                               {doc.error ? <p className="text-xs font-medium text-red-600" role="alert">{doc.error}</p> : null}
                             </div>
                           </div>
-                          <DocumentStatusBadge status={doc.status} />
+                          <DocumentRowActions doc={{ id: doc.id, name: doc.name, sourceType: doc.sourceType, status: doc.status }} />
                         </div>
                       );
                     })}

@@ -50,6 +50,18 @@ export function RegisterForm() {
           />
           <FieldHint>At least 8 characters. Use a password you don&apos;t reuse elsewhere.</FieldHint>
         </div>
+        <div>
+          <Label htmlFor="confirmPassword">Confirm password</Label>
+          <Input
+            id="confirmPassword"
+            name="confirmPassword"
+            type="password"
+            autoComplete="new-password"
+            placeholder="Repeat your password"
+            minLength={8}
+            required
+          />
+        </div>
         {state && !state.ok ? (
           <FieldError>
             <span className="flex items-start gap-1.5">

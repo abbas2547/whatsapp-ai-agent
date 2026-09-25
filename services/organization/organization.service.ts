@@ -74,13 +74,19 @@ export async function registerWorkspace(input: {
  * Creates a workspace for an already-authenticated user (e.g. first Google
  * sign-in, where NextAuth creates the User row but no organization exists).
  */
-export async function createWorkspaceForUser(userId: string, organizationName: string) {
+export async function createWorkspaceForUser(
+  userId: string,
+  organizationName: string,
+  opts?: { allowMultiple?: boolean },
+) {
   const name = organizationName.trim();
   if (name.length < 2) throw new AppError("Organization name is too short", "INVALID_ORG_NAME", 400);
   const user = await db.user.findUnique({ where: { id: userId } });
   if (!user) throw new AppError("Account not found. Please log in again.", "NO_ACCOUNT", 401);
-  const existingMembership = await db.organizationMember.findFirst({ where: { userId } });
-  if (existingMembership) throw new AppError("You already belong to a workspace", "ALREADY_MEMBER", 409);
+  if (!opts?.allowMultiple) {
+    const existingMembership = await db.organizationMember.findFirst({ where: { userId } });
+    if (existingMembership) throw new AppError("You already belong to a workspace", "ALREADY_MEMBER", 409);
+  }
 
   const slug = await uniqueSlug(slugify(name) || "workspace");
   const organization = await db.$transaction(async (tx) => {
@@ -103,6 +109,24 @@ export async function createWorkspaceForUser(userId: string, organizationName: s
   });
 
   return organization;
+}
+
+export async function listUserWorkspaces(userId: string) {
+  const memberships = await db.organizationMember.findMany({
+    where: { userId },
+    select: {
+      role: true,
+      createdAt: true,
+      organization: { select: { id: true, name: true, slug: true } },
+    },
+    orderBy: { createdAt: "asc" },
+  });
+  return memberships.map((m) => ({
+    id: m.organization.id,
+    name: m.organization.name,
+    slug: m.organization.slug,
+    role: m.role,
+  }));
 }
 
 export async function listMembers(organizationId: string) {

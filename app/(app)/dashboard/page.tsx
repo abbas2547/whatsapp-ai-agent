@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { requireSessionOrRedirect } from "@/app/actions";
 import { db } from "@/lib/db";
-import { getDashboardMetrics, getRecentMessageVolume } from "@/services/analytics/analytics.service";
+import { getDashboardMetrics, getRecentMessageVolume, getDashboardExtras } from "@/services/analytics/analytics.service";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge, EmptyState, PageHeader } from "@/components/ui/badge";
@@ -14,12 +14,15 @@ import {
   Bot,
   CalendarCheck2,
   CheckCircle2,
+  Database,
   Inbox,
   MessagesSquare,
   PhoneCall,
   Plug,
   Sparkles,
+  Timer,
   Users as UsersIcon,
+  Workflow,
   Zap,
 } from "lucide-react";
 
@@ -32,11 +35,22 @@ function greeting(name?: string | null) {
   return first ? `${part}, ${first}` : part;
 }
 
+function ExecutionBadge({ status }: { status: string }) {
+  const map: Record<string, "success" | "secondary" | "warning" | "danger" | "info" | "default" | "outline"> = {
+    COMPLETED: "success",
+    FAILED: "danger",
+    RUNNING: "info",
+    WAITING: "warning",
+    CANCELLED: "secondary",
+  };
+  return <Badge variant={map[status] || "secondary"}>{status}</Badge>;
+}
+
 export default async function DashboardPage() {
   const session = await requireSessionOrRedirect();
   const orgId = session.user.organizationId!;
 
-  const [metrics, whatsapp, volumeSample] = await Promise.all([
+  const [metrics, whatsapp, volumeSample, extras] = await Promise.all([
     getDashboardMetrics(orgId),
     db.whatsAppPhoneNumber.findFirst({
       where: { organizationId: orgId },
@@ -44,6 +58,7 @@ export default async function DashboardPage() {
       orderBy: { createdAt: "asc" },
     }),
     getRecentMessageVolume(orgId, 14),
+    getDashboardExtras(orgId),
   ]);
 
   // Bucket real message counts per day (last 14 days). No invented data.
@@ -118,7 +133,39 @@ export default async function DashboardPage() {
         <StatCard label="Unread" value={metrics.unread} icon={MessagesSquare} href="/inbox?filter=unread" sub="Need a reply" tone={metrics.unread > 0 ? "red" : "default"} />
         <StatCard label="Qualified leads" value={metrics.qualified} icon={CheckCircle2} href="/leads?status=QUALIFIED" sub="Ready to close" tone="green" />
         <StatCard label="Automation runs" value={metrics.automations} icon={Zap} href="/automations" sub="Last 30 days" />
-        <StatCard label="Response" value="Live" icon={Bot} href="/inbox" sub="AI replies in seconds" tone="green" />
+        <StatCard
+          label="Avg response"
+          value={extras.avgResponseMs == null ? "—" : extras.avgResponseMs < 1000 ? `${extras.avgResponseMs} ms` : `${(extras.avgResponseMs / 1000).toFixed(1)} s`}
+          icon={Timer}
+          href="/analytics"
+          sub="First reply · 30 days"
+        />
+      </div>
+
+      {/* Quick actions */}
+      <div>
+        <h2 className="mb-2.5 text-[15px] font-semibold tracking-tight">Quick actions</h2>
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
+          {[
+            { href: "/agents/new", icon: Bot, title: "Create AI Agent", desc: "New AI employee", tone: "bg-emerald-500/10 text-emerald-600" },
+            { href: "/integrations", icon: Plug, title: "Connect WhatsApp", desc: "Link a number", tone: "bg-sky-500/10 text-sky-600" },
+            { href: "/knowledge", icon: Database, title: "Upload Knowledge", desc: "Docs & FAQs", tone: "bg-violet-500/10 text-violet-600" },
+            { href: "/automations/new", icon: Workflow, title: "Create Automation", desc: "Visual workflow", tone: "bg-amber-500/10 text-amber-600" },
+            { href: "/inbox", icon: Inbox, title: "View Inbox", desc: "Conversations", tone: "bg-rose-500/10 text-rose-600" },
+          ].map((a) => (
+            <Link key={a.title} href={a.href} prefetch className="group">
+              <Card className="card-elevated flex items-center gap-3 p-4">
+                <span className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl ${a.tone}`}>
+                  <a.icon className="h-5 w-5" />
+                </span>
+                <span className="min-w-0">
+                  <span className="block truncate text-[13px] font-semibold group-hover:text-primary">{a.title}</span>
+                  <span className="block truncate text-[11px] text-muted-foreground">{a.desc}</span>
+                </span>
+              </Card>
+            </Link>
+          ))}
+        </div>
       </div>
 
       <div className="grid gap-4 lg:grid-cols-5">
@@ -180,6 +227,79 @@ export default async function DashboardPage() {
               </>
             ) : (
               <EmptyState compact title="No replies yet" description="AI and human activity appears here once conversations start." />
+            )}
+          </CardContent>
+        </Card>
+      </div>
+
+      <div className="grid gap-4 lg:grid-cols-2">
+        {/* Lead pipeline — real status distribution */}
+        <Card>
+          <CardHeader className="flex-row items-center justify-between space-y-0">
+            <div>
+              <CardTitle>Lead pipeline</CardTitle>
+              <CardDescription>All leads by real status.</CardDescription>
+            </div>
+            <Button asChild variant="ghost" size="sm">
+              <Link href="/leads">View all <ArrowRight /></Link>
+            </Button>
+          </CardHeader>
+          <CardContent>
+            {extras.pipeline.length ? (
+              <div className="flex flex-col gap-2.5">
+                {(() => {
+                  const max = Math.max(1, ...extras.pipeline.map((p) => p._count.status));
+                  const order = ["NEW", "CONTACTED", "QUALIFIED", "PROPOSAL", "WON", "LOST"];
+                  return [...extras.pipeline]
+                    .sort((a, b) => order.indexOf(a.status) - order.indexOf(b.status))
+                    .map((p) => (
+                      <Link key={p.status} href={`/leads?status=${p.status}`} className="flex items-center gap-3">
+                        <span className="w-24 shrink-0 text-xs font-medium capitalize text-muted-foreground">
+                          {p.status.replaceAll("_", " ").toLowerCase()}
+                        </span>
+                        <span className="h-2.5 flex-1 overflow-hidden rounded-full bg-muted">
+                          <span
+                            className="block h-full rounded-full bg-gradient-to-r from-sky-500 to-emerald-400"
+                            style={{ width: `${Math.max(4, (p._count.status / max) * 100)}%` }}
+                          />
+                        </span>
+                        <span className="w-8 shrink-0 text-right text-xs font-bold tabular-nums">{p._count.status}</span>
+                      </Link>
+                    ));
+                })()}
+              </div>
+            ) : (
+              <EmptyState compact title="No leads yet" description="Leads appear here once AI agents qualify customers." />
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Automation activity — real executions */}
+        <Card>
+          <CardHeader className="flex-row items-center justify-between space-y-0">
+            <div>
+              <CardTitle>Automation activity</CardTitle>
+              <CardDescription>Latest real workflow runs.</CardDescription>
+            </div>
+            <Button asChild variant="ghost" size="sm">
+              <Link href="/automations">View all <ArrowRight /></Link>
+            </Button>
+          </CardHeader>
+          <CardContent>
+            {extras.executions.length ? (
+              <div className="flex flex-col divide-y divide-border">
+                {extras.executions.map((e) => (
+                  <div key={e.id} className="flex items-center justify-between gap-3 py-2">
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-medium">{e.workflow.name}</p>
+                      <p className="truncate text-xs text-muted-foreground">{e.trigger} · {relTime(e.startedAt)}</p>
+                    </div>
+                    <ExecutionBadge status={e.status} />
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <EmptyState compact title="No automation runs" description="Publish a workflow and its executions will appear here." />
             )}
           </CardContent>
         </Card>

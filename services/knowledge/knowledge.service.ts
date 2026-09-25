@@ -85,6 +85,63 @@ export async function addDocument(input: {
   return doc;
 }
 
+export async function deleteDocument(organizationId: string, userId: string, documentId: string) {
+  const doc = await db.knowledgeDocument.findFirst({
+    where: { id: documentId, organizationId },
+    select: { id: true, knowledgeBaseId: true, name: true },
+  });
+  if (!doc) throw new AppError("Document not found", "NOT_FOUND", 404);
+  await db.documentChunk.deleteMany({ where: { documentId: doc.id } });
+  await db.knowledgeDocument.delete({ where: { id: doc.id } });
+  await writeAuditLog({
+    organizationId,
+    userId,
+    action: "knowledge.document_deleted",
+    entityType: "knowledge_document",
+    entityId: doc.id,
+    metadata: { name: doc.name },
+  });
+  return { deleted: true };
+}
+
+export async function retryDocument(organizationId: string, userId: string, documentId: string) {
+  const doc = await db.knowledgeDocument.findFirst({
+    where: { id: documentId, organizationId },
+    select: { id: true, content: true },
+  });
+  if (!doc) throw new AppError("Document not found", "NOT_FOUND", 404);
+  if (!doc.content) throw new AppError("Document has no content to reprocess", "NO_CONTENT", 400);
+  await db.knowledgeDocument.update({
+    where: { id: doc.id },
+    data: { status: "PROCESSING", error: null, chunkCount: 0 },
+  });
+  after(() =>
+    processDocument(doc.id).catch(async (error) => {
+      await db.knowledgeDocument.update({
+        where: { id: doc.id },
+        data: { status: "FAILED", error: error instanceof Error ? error.message : "Processing failed" },
+      });
+    }),
+  );
+  await writeAuditLog({
+    organizationId,
+    userId,
+    action: "knowledge.document_retried",
+    entityType: "knowledge_document",
+    entityId: doc.id,
+  });
+  return { retried: true };
+}
+
+export async function getDocumentExcerpt(organizationId: string, documentId: string, length = 2000) {
+  const doc = await db.knowledgeDocument.findFirst({
+    where: { id: documentId, organizationId },
+    select: { id: true, name: true, sourceType: true, status: true, content: true },
+  });
+  if (!doc) throw new AppError("Document not found", "NOT_FOUND", 404);
+  return { ...doc, content: (doc.content || "").slice(0, length) };
+}
+
 export async function processDocument(documentId: string) {
   const doc = await db.knowledgeDocument.findUnique({ where: { id: documentId } });
   if (!doc?.content) throw new Error("Document missing content");

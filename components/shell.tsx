@@ -29,6 +29,8 @@ import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { initials } from "@/components/format";
 import { useDebouncedValue } from "@/hooks/use-debounce";
+import { InstallButton } from "@/components/pwa/install-button";
+import { WorkspaceSwitcher, type WorkspaceItem } from "@/components/shell/workspace-switcher";
 
 type NavItem = { href: string; label: string; icon: LucideIcon; badge?: number };
 
@@ -81,11 +83,15 @@ const TITLES: Record<string, string> = {
 export function Shell({
   user,
   organizationName,
+  organizationId,
+  workspaces = [],
   alertCount = 0,
   children,
 }: {
   user: { name?: string | null; email?: string | null; image?: string | null; role?: string };
   organizationName: string;
+  organizationId?: string;
+  workspaces?: WorkspaceItem[];
   alertCount?: number;
   children: React.ReactNode;
 }) {
@@ -132,17 +138,11 @@ export function Shell({
         aria-label="Primary"
       >
         <div className={cn("flex h-14 items-center gap-2.5 border-b border-border px-3", collapsed && "justify-center px-2")}>
-          <Link href="/dashboard" className="flex min-w-0 items-center gap-2.5" aria-label="Go to dashboard">
-            <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-emerald-500 to-emerald-700 text-white shadow-sm">
-              <Bot className="h-4 w-4" aria-hidden />
-            </span>
-            {!collapsed && (
-              <span className="min-w-0 leading-tight">
-                <span className="block truncate text-[13px] font-semibold tracking-tight">{organizationName}</span>
-                <span className="block text-[11px] text-muted-foreground">WhatsApp AI Employee</span>
-              </span>
-            )}
-          </Link>
+          {collapsed ? (
+            <WorkspaceSwitcher workspaces={workspaces} activeId={organizationId || ""} collapsed onExpand={toggleCollapsed} />
+          ) : (
+            <WorkspaceSwitcher workspaces={workspaces} activeId={organizationId || ""} />
+          )}
         </div>
 
         <nav className="flex-1 space-y-5 overflow-y-auto p-2.5">
@@ -206,13 +206,10 @@ export function Shell({
         <div className="fixed inset-0 z-50 md:hidden" role="dialog" aria-modal="true" aria-label="Navigation">
           <div className="absolute inset-0 bg-black/45 animate-pop-in" onClick={closeMobile} />
           <aside className="absolute left-0 top-0 flex h-full w-[280px] flex-col border-r border-border bg-card shadow-2xl animate-page-in">
-            <div className="flex h-14 items-center justify-between border-b border-border px-4">
-              <Link href="/dashboard" onClick={closeMobile} className="flex items-center gap-2.5">
-                <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-gradient-to-br from-emerald-500 to-emerald-700 text-white">
-                  <Bot className="h-4 w-4" />
-                </span>
-                <span className="text-[13px] font-semibold">{organizationName}</span>
-              </Link>
+            <div className="flex h-14 items-center justify-between gap-2 border-b border-border px-3">
+              <div className="min-w-0 flex-1">
+                <WorkspaceSwitcher workspaces={workspaces} activeId={organizationId || ""} onNavigate={closeMobile} />
+              </div>
               <Button variant="ghost" size="icon-sm" onClick={closeMobile} aria-label="Close menu">
                 <X className="h-4 w-4" />
               </Button>
@@ -429,6 +426,8 @@ function TopBar({
           <span className="h-2 w-2 rounded-full bg-emerald-500" aria-hidden />
           Workspace
         </Link>
+
+        <InstallButton />
       </div>
     </header>
   );

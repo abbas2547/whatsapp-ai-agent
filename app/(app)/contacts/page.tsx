@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { Suspense } from "react";
 import { requireSessionOrRedirect } from "@/app/actions";
-import { countContacts, listContacts, CONTACTS_PAGE_SIZE } from "@/services/contacts/contact.service";
+import { countContacts, listContacts, CONTACTS_PAGE_SIZE, type ContactSort } from "@/services/contacts/contact.service";
 import { db } from "@/lib/db";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -28,6 +28,8 @@ export default async function ContactsPage({
   const query = typeof sp.q === "string" && sp.q.trim() ? sp.q.trim() : undefined;
   const tag = typeof sp.tag === "string" && sp.tag.trim() ? sp.tag.trim() : undefined;
   const page = Math.max(1, parseInt(typeof sp.page === "string" ? sp.page : "1", 10) || 1);
+  const sortParam = typeof sp.sort === "string" ? sp.sort : "recent";
+  const sort: ContactSort = sortParam === "name" || sortParam === "oldest" ? sortParam : "recent";
 
   const tags = await db.tag.findMany({
     where: { organizationId: orgId },
@@ -55,6 +57,7 @@ export default async function ContactsPage({
 
       <div className="flex flex-wrap items-center gap-3">
         <DebouncedSearch placeholder="Search name, phone, email…" initial={query || ""} className="min-w-52 flex-1 sm:max-w-xs" />
+        <SortSelect sort={sort} query={query} tag={tag} />
         <div className="flex flex-wrap items-center gap-1.5">
           {tag ? (
             <Link href="/contacts" className="rounded-full bg-primary px-3 py-1.5 text-xs font-semibold text-primary-foreground">
@@ -80,21 +83,52 @@ export default async function ContactsPage({
       </div>
 
       <Suspense fallback={<ListSkeleton rows={6} />}>
-        <ContactList orgId={orgId} query={query} tag={tag} page={page} />
+        <ContactList orgId={orgId} query={query} tag={tag} page={page} sort={sort} />
       </Suspense>
     </div>
   );
 }
 
-async function ContactList({ orgId, query, tag, page }: { orgId: string; query?: string; tag?: string; page: number }) {
+function SortSelect({ sort, query, tag }: { sort: ContactSort; query?: string; tag?: string }) {
+  const params = new URLSearchParams();
+  if (query) params.set("q", query);
+  if (tag) params.set("tag", tag);
+  const qs = params.toString();
+  const href = (s: ContactSort) => `/contacts?${qs ? `${qs}&` : ""}sort=${s}`;
+  return (
+    <div className="flex rounded-xl border border-border bg-card p-1 text-xs font-semibold" role="tablist" aria-label="Sort contacts">
+      {(
+        [
+          ["recent", "Recent"],
+          ["name", "Name A–Z"],
+          ["oldest", "Oldest"],
+        ] as [ContactSort, string][]
+      ).map(([value, label]) => (
+        <Link
+          key={value}
+          href={href(value)}
+          prefetch
+          role="tab"
+          aria-selected={sort === value}
+          className={cn("rounded-lg px-2.5 py-1.5 transition-all", sort === value ? "bg-primary text-primary-foreground shadow-sm" : "text-muted-foreground hover:text-foreground")}
+        >
+          {label}
+        </Link>
+      ))}
+    </div>
+  );
+}
+
+async function ContactList({ orgId, query, tag, page, sort }: { orgId: string; query?: string; tag?: string; page: number; sort: ContactSort }) {
   const [contacts, total] = await Promise.all([
-    listContacts(orgId, query, tag, page),
+    listContacts(orgId, query, tag, page, sort),
     countContacts(orgId, query, tag),
   ]);
   const hasMore = page * CONTACTS_PAGE_SIZE < total;
   const params = new URLSearchParams();
   if (query) params.set("q", query);
   if (tag) params.set("tag", tag);
+  if (sort !== "recent") params.set("sort", sort);
   const baseHref = `/contacts${params.toString() ? `?${params.toString()}` : ""}`;
 
   if (!contacts.length) {

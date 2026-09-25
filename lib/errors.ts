@@ -38,6 +38,13 @@ function prismaCode(error: unknown): string | undefined {
 
 export function publicErrorMessage(error: unknown) {
   if (error instanceof AppError) return error.message;
+  // Zod validation errors: surface the first human-readable issue (safe —
+  // messages come from our own schemas, never from user input).
+  if (typeof error === "object" && error !== null && (error as { name?: unknown }).name === "ZodError") {
+    const issues = (error as { issues?: Array<{ message?: unknown }> }).issues;
+    const first = issues?.find((i) => typeof i.message === "string")?.message as string | undefined;
+    if (first) return first;
+  }
   switch (prismaCode(error)) {
     case "P1000":
       return "Database authentication failed. The database user or password in DATABASE_URL is wrong — reset the database password (Supabase: Database settings) and update .env.local, then restart the dev server.";

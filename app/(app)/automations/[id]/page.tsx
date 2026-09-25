@@ -5,6 +5,8 @@ import { requireSessionOrRedirect } from "@/app/actions";
 import { db } from "@/lib/db";
 import { ArrowLeft, Workflow } from "lucide-react";
 import { WorkflowEditorLoader } from "@/components/workflow/editor-loader";
+import { ExecutionHistoryCard } from "@/components/workflow/execution-history";
+import { listWorkflowExecutions } from "@/services/automation/executions";
 import type { LoadedWorkflow } from "@/components/workflow/editor";
 
 export const metadata: Metadata = { title: "Automation" };
@@ -17,13 +19,14 @@ export default async function AutomationDetailPage({ params }: { params: Promise
 
   if (id === "new") redirect("/automations/new");
 
-  const [workflow, agents, integrations] = await Promise.all([
+  const [workflow, agents, integrations, runs] = await Promise.all([
     db.workflow.findFirst({
       where: { id, organizationId: orgId },
       include: { nodes: true, edges: true },
     }),
     db.agent.findMany({ where: { organizationId: orgId }, select: { id: true, name: true }, orderBy: { name: "asc" } }),
     db.integration.findMany({ where: { organizationId: orgId, provider: "HTTP" }, select: { id: true, name: true } }),
+    listWorkflowExecutions(orgId, id, 20),
   ]);
   if (!workflow) notFound();
 
@@ -60,6 +63,7 @@ export default async function AutomationDetailPage({ params }: { params: Promise
         <h1 className="text-2xl font-semibold tracking-tight">{workflow.name}</h1>
       </div>
       <WorkflowEditorLoader workflow={loaded} agents={agents} integrations={integrations} />
+      <ExecutionHistoryCard runs={runs} />
     </div>
   );
 }

@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="eluue ai agent logo">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#34D399"/>
+      <stop offset="0.55" stop-color="#10B981"/>
+      <stop offset="1" stop-color="#047857"/>
+    </linearGradient>
+    <linearGradient id="spark" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#059669"/>
+      <stop offset="1" stop-color="#065F46"/>
+    </linearGradient>
+    <linearGradient id="sheen" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#FFFFFF" stop-opacity="0.28"/>
+      <stop offset="0.45" stop-color="#FFFFFF" stop-opacity="0"/>
+    </linearGradient>
+  </defs>
+  <rect x="24" y="24" width="464" height="464" rx="118" fill="url(#bg)"/>
+  <rect x="24" y="24" width="464" height="464" rx="118" fill="url(#sheen)"/>
+  <g>
+    <rect x="132" y="150" width="248" height="212" rx="62" fill="#FFFFFF"/>
+    <path d="M188 348 L164 424 L248 352 Z" fill="#FFFFFF"/>
+    <path d="M256 192 C263 236 287 254 331 261 C287 268 263 286 256 330 C249 286 225 268 181 261 C225 254 249 236 256 192 Z" fill="url(#spark)"/>
+    <circle cx="322" cy="200" r="14" fill="#10B981"/>
+  </g>
+</svg>

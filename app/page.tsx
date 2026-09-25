@@ -8,6 +8,7 @@ import {
   ArrowRight,
   Bot,
   CalendarCheck2,
+  ChartNoAxesCombined,
   CheckCircle2,
   Database,
   Inbox,
@@ -15,6 +16,7 @@ import {
   PlayCircle,
   ShieldCheck,
   Sparkles,
+  UserPlus,
   Users,
   Workflow,
   Zap,
@@ -97,6 +99,9 @@ export default async function Home() {
           <nav className="hidden items-center gap-6 text-sm font-medium text-muted-foreground md:flex">
             <a href="#features" className="transition-colors hover:text-foreground">
               Features
+            </a>
+            <a href="#product" className="transition-colors hover:text-foreground">
+              Product
             </a>
             <a href="#how-it-works" className="transition-colors hover:text-foreground">
               How it works
@@ -213,6 +218,34 @@ export default async function Home() {
                   </div>
                   <h3 className="mt-4 text-base font-semibold tracking-tight">{f.title}</h3>
                   <p className="mt-1.5 text-sm leading-6 text-muted-foreground">{f.description}</p>
+                </Card>
+              ))}
+            </div>
+          </div>
+        </section>
+
+        {/* Product tour */}
+        <section id="product" className="scroll-mt-16 border-b border-border">
+          <div className="mx-auto w-full max-w-6xl px-4 py-16 sm:px-6 md:py-24">
+            <div className="max-w-2xl">
+              <p className="text-sm font-semibold text-emerald-600">Product tour</p>
+              <h2 className="mt-2 text-balance text-3xl font-bold tracking-tight">Everything a WhatsApp operation needs</h2>
+            </div>
+            <div className="mt-8 grid gap-4 md:grid-cols-2">
+              {[
+                { icon: Bot, title: "AI Employee builder", desc: "Guided 8-step builder: basic info, personality presets, instructions, knowledge, tools, WhatsApp number, live test chat, publish. Save drafts, preview live, publish for real." },
+                { icon: Users, title: "Lead qualification", desc: "Agents collect budget, timeline and intent naturally. Leads land in a table or a drag-and-drop pipeline that writes straight to the database." },
+                { icon: Database, title: "Knowledge-powered answers", desc: "Upload PDFs, DOCX and FAQs. Documents move through uploading, processing and ready states — agents never invent facts outside them." },
+                { icon: Workflow, title: "Visual automations", desc: "Triggers, conditions, AI steps, WhatsApp messages, waits and handoffs on a zoomable canvas — with a real execution timeline per run." },
+                { icon: UserPlus, title: "Human handoff", desc: "AI_ACTIVE, WAITING_FOR_HUMAN, HUMAN_ACTIVE, RESOLVED. Take over, return to AI, or resolve — internal notes never reach the customer." },
+                { icon: ChartNoAxesCombined, title: "Analytics & integrations", desc: "Real message volume, AI-vs-human split, pipeline and automation activity over 7/30/90 days. WhatsApp, Google Calendar, Gmail and HTTP integrations." },
+              ].map((s) => (
+                <Card key={s.title} className="card-elevated p-6">
+                  <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-primary/10">
+                    <s.icon className="h-5 w-5 text-primary" />
+                  </div>
+                  <h3 className="mt-4 text-base font-semibold tracking-tight">{s.title}</h3>
+                  <p className="mt-1.5 text-sm leading-6 text-muted-foreground">{s.desc}</p>
                 </Card>
               ))}
             </div>

@@ -41,6 +41,7 @@ export async function listAgents(organizationId: string) {
       tools: { select: { toolName: true, enabled: true } },
       knowledgeLinks: { select: { knowledgeBaseId: true } },
       whatsappPhoneNumber: { select: { id: true, displayPhoneNumber: true } },
+      _count: { select: { conversations: true } },
     },
     orderBy: { updatedAt: "desc" },
   });

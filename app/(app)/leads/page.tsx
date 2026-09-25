@@ -4,8 +4,9 @@ import { Suspense } from "react";
 import { requireSessionOrRedirect } from "@/app/actions";
 import { countLeads, listLeads, LEADS_PAGE_SIZE } from "@/services/leads/lead.service";
 import { Card } from "@/components/ui/card";
-import { Badge, EmptyState, PageHeader } from "@/components/ui/badge";
+import { EmptyState, PageHeader } from "@/components/ui/badge";
 import { LeadStatusSelect } from "@/components/leads/lead-actions";
+import { LeadPipeline } from "@/components/leads/lead-pipeline";
 import { LeadStatusBadge } from "@/components/status-badges";
 import { Pagination } from "@/components/ui/stat";
 import { TableSkeleton } from "@/components/ui/skeletons";
@@ -111,36 +112,23 @@ async function LeadList({ orgId, status, page, view }: { orgId: string; status?:
   }
 
   if (view === "pipeline") {
-    const cols: LeadStatus[] = ["NEW", "CONTACTED", "QUALIFIED", "PROPOSAL", "WON", "LOST"];
-    const grouped = new Map<LeadStatus, typeof leads>();
-    for (const c of cols) grouped.set(c, []);
-    for (const l of leads) grouped.get(l.status)?.push(l);
-    // When a status filter is active, show only that column plus neighbors honestly.
-    const visible = status ? [status] : cols;
+    if (status) {
+      // A status filter + pipeline is contradictory; pipeline shows all columns.
+      return (
+        <>
+          <LeadPipeline leads={leads} />
+          <p className="text-xs text-muted-foreground" role="status">
+            Drag cards between columns — changes save to the database immediately. Showing {leads.length} lead(s).
+          </p>
+        </>
+      );
+    }
     return (
       <>
-        <div className="grid gap-3 overflow-x-auto pb-2 md:grid-cols-3 xl:grid-cols-6" style={{ minWidth: 0 }}>
-          {visible.map((col) => (
-            <div key={col} className="min-w-60 rounded-2xl border border-border bg-muted/40 p-2.5">
-              <p className="flex items-center justify-between px-1.5 pb-2 text-xs font-bold uppercase tracking-wider text-muted-foreground">
-                {col} <Badge variant="secondary">{status ? leads.length : grouped.get(col)?.length || 0}</Badge>
-              </p>
-              <div className="flex flex-col gap-2">
-                {(status ? leads : grouped.get(col) || []).map((lead) => (
-                  <Card key={lead.id} className="p-3">
-                    <p className="truncate text-[13px] font-semibold">{lead.name || lead.contact?.name || lead.phone}</p>
-                    <p className="truncate text-[11px] text-muted-foreground">{lead.service || "No service"} · {lead.score}</p>
-                    <div className="mt-2"><LeadStatusBadge status={lead.status} /></div>
-                  </Card>
-                ))}
-                {(status ? leads : grouped.get(col) || []).length === 0 && (
-                  <p className="px-1.5 py-4 text-center text-[11px] text-muted-foreground">No leads</p>
-                )}
-              </div>
-            </div>
-          ))}
-        </div>
-        <p className="text-xs text-muted-foreground" role="status">Showing {leads.length} of {total} lead(s).</p>
+        <LeadPipeline leads={leads} />
+        <p className="text-xs text-muted-foreground" role="status">
+          Drag cards between columns — changes save to the database immediately. Showing {leads.length} of {total} lead(s).
+        </p>
       </>
     );
   }

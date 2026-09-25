@@ -50,14 +50,51 @@ export async function getDashboardMetrics(organizationId: string) {
   };
 }
 
-export async function getRecentMessageVolume(organizationId: string, days = 14) {
-  const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
+export async function getRecentMessageVolume(organizationId: string, days = 14) {  const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
   return db.message.findMany({
     where: { organizationId, createdAt: { gte: since } },
     select: { createdAt: true },
     orderBy: { createdAt: "asc" },
     take: 1500,
   });
+}
+
+export async function getDashboardExtras(organizationId: string) {
+  const since = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+  const [pipeline, executions, sample] = await Promise.all([
+    db.lead.groupBy({
+      by: ["status"],
+      where: { organizationId },
+      _count: { status: true },
+    }),
+    db.workflowExecution.findMany({
+      where: { organizationId },
+      select: { id: true, status: true, trigger: true, startedAt: true, workflow: { select: { name: true } } },
+      orderBy: { startedAt: "desc" },
+      take: 5,
+    }),
+    db.message.findMany({
+      where: { organizationId, createdAt: { gte: since } },
+      select: { conversationId: true, senderType: true, createdAt: true },
+      orderBy: { createdAt: "asc" },
+      take: 1000,
+    }),
+  ]);
+
+  const firstInbound = new Map<string, Date>();
+  const firstOutbound = new Map<string, Date>();
+  for (const m of sample) {
+    if (m.senderType === "CUSTOMER" && !firstInbound.has(m.conversationId)) firstInbound.set(m.conversationId, m.createdAt);
+    if ((m.senderType === "AI" || m.senderType === "HUMAN") && !firstOutbound.has(m.conversationId)) firstOutbound.set(m.conversationId, m.createdAt);
+  }
+  const deltas: number[] = [];
+  for (const [id, inbound] of firstInbound) {
+    const out = firstOutbound.get(id);
+    if (out && out > inbound) deltas.push(out.getTime() - inbound.getTime());
+  }
+  const avgResponseMs = deltas.length ? Math.round(deltas.reduce((a, b) => a + b, 0) / deltas.length) : null;
+
+  return { pipeline, executions, avgResponseMs };
 }
 
 export async function getAnalytics(organizationId: string, days = 30) {

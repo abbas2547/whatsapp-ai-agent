@@ -6,7 +6,7 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { EmptyState, PageHeader } from "@/components/ui/badge";
-import { Workflow, Plus, Waypoints, ArrowRight, Zap } from "lucide-react";
+import { Plus, Waypoints, ArrowRight, Zap } from "lucide-react";
 import { fmtDate } from "@/components/format";
 
 export const metadata: Metadata = { title: "Automations" };

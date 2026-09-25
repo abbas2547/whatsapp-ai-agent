@@ -1,14 +1,11 @@
 import type { Metadata } from "next";
-import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { requireSessionOrRedirect } from "@/app/actions";
 import { db } from "@/lib/db";
 import { getAgent } from "@/services/ai/agent.service";
 import { listKnowledgeBases } from "@/services/knowledge/knowledge.service";
-import { TOOL_NAMES } from "@/services/ai/tools/registry";
-import { AgentEditor, type AgentEditorValue } from "@/components/agents/agent-editor";
-import { ArrowLeft, Bot } from "lucide-react";
-import { AgentStatusBadge } from "@/components/status-badges";
+import { TOOL_DEFINITIONS } from "@/services/ai/tools/registry";
+import { AgentBuilder, type AgentEditorValue } from "@/components/agents/agent-builder";
 
 export const metadata: Metadata = { title: "Edit agent" };
 export const dynamic = "force-dynamic";
@@ -22,7 +19,11 @@ export default async function EditAgentPage({ params }: { params: Promise<{ id: 
 
   const [agent, phones, knowledge] = await Promise.all([
     getAgent(orgId, id).catch(() => null),
-    db.whatsAppPhoneNumber.findMany({ where: { organizationId: orgId }, orderBy: { displayPhoneNumber: "asc" } }),
+    db.whatsAppPhoneNumber.findMany({
+      where: { organizationId: orgId },
+      select: { id: true, displayPhoneNumber: true, verifiedName: true },
+      orderBy: { displayPhoneNumber: "asc" },
+    }),
     listKnowledgeBases(orgId),
   ]);
   if (!agent) notFound();
@@ -49,23 +50,17 @@ export default async function EditAgentPage({ params }: { params: Promise<{ id: 
   };
 
   return (
-    <div className="mx-auto flex max-w-6xl flex-col gap-4">
-      <Link href="/agents" className="inline-flex w-fit items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground">
-        <ArrowLeft className="h-4 w-4" /> Back to agents
-      </Link>
-      <div className="flex items-center gap-3">
-        <div className="flex h-11 w-11 items-center justify-center rounded-full bg-primary/10">
-          <Bot className="h-5 w-5 text-primary" />
-        </div>
-        <div>
-          <div className="flex items-center gap-2">
-            <h1 className="text-2xl font-semibold tracking-tight">{agent.name}</h1>
-            <AgentStatusBadge status={agent.status} />
-          </div>
-          <p className="text-sm text-muted-foreground">{agent.description || "AI employee"}</p>
-        </div>
-      </div>
-      <AgentEditor agent={value} phones={phones} knowledge={knowledge} toolNames={TOOL_NAMES} />
+    <div className="mx-auto flex max-w-7xl flex-col gap-4">
+      <AgentBuilder
+        agent={value}
+        phones={phones}
+        knowledge={knowledge.map((k) => ({
+          id: k.id,
+          name: k.name,
+          documents: k.documents.map((d) => ({ status: d.status })),
+        }))}
+        tools={TOOL_DEFINITIONS.map((t) => ({ name: t.name, description: t.description }))}
+      />
     </div>
   );
 }

@@ -49,9 +49,20 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
   callbacks: {
     async jwt({ token, user, trigger, session }) {
       if (user?.id) token.sub = user.id;
-      if (trigger === "update" && session?.organizationId) {
-        token.organizationId = session.organizationId;
-        token.role = session.role;
+      if (trigger === "update" && (session as { organizationId?: string } | null)?.organizationId) {
+        // Workspace switch requested by the client: re-validate membership
+        // from the database. Forged organizationIds are ignored.
+        const requested = (session as { organizationId?: string }).organizationId!;
+        if (token.sub) {
+          const membership = await db.organizationMember.findFirst({
+            where: { userId: token.sub, organizationId: requested },
+            select: { organizationId: true, role: true },
+          });
+          if (membership) {
+            token.organizationId = membership.organizationId;
+            token.role = membership.role;
+          }
+        }
       }
       if (token.sub && (!token.organizationId || trigger === "signIn" || user)) {
         const membership = await db.organizationMember.findFirst({

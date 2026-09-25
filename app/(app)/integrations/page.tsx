@@ -4,7 +4,7 @@ import { requireSessionOrRedirect } from "@/app/actions";
 import { db } from "@/lib/db";
 import { getWhatsAppStatus } from "@/services/whatsapp/connect";
 import { appUrl, env, isPlaceholder } from "@/lib/env";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge, PageHeader } from "@/components/ui/badge";
 import { WhatsAppConnectCard } from "@/components/integrations/whatsapp-connect";
