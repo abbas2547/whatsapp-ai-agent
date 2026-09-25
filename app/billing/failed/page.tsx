@@ -1,0 +1,39 @@
+import type { Metadata } from "next";
+import Link from "next/link";
+import { Suspense } from "react";
+import { ArrowLeft } from "lucide-react";
+import { PaymentStatus } from "@/components/billing/payment-status";
+
+export const metadata: Metadata = { title: "Payment not completed" };
+
+export default async function BillingFailedPage({
+  searchParams,
+}: {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}) {
+  const sp = await searchParams;
+  const orderId = typeof sp.order_id === "string" ? sp.order_id : null;
+
+  return (
+    <div className="mx-auto flex w-full max-w-2xl flex-col px-4 py-10 sm:px-6 md:py-16">
+      <Link href="/billing" className="mb-6 inline-flex w-fit items-center gap-1.5 text-sm font-medium text-muted-foreground hover:text-foreground">
+        <ArrowLeft className="h-4 w-4" /> Billing
+      </Link>
+      {orderId ? (
+        <Suspense>
+          <PaymentStatus orderId={orderId} expect="failed" />
+        </Suspense>
+      ) : (
+        <div className="mx-auto flex w-full max-w-lg flex-col items-center rounded-3xl border border-border bg-card p-8 text-center">
+          <h1 className="text-xl font-extrabold tracking-tight">Payment wasn&apos;t completed</h1>
+          <p className="mt-2 text-sm text-muted-foreground">
+            Your account has not been upgraded. You can safely try again.
+          </p>
+          <Link href="/pricing" className="mt-4 text-sm font-semibold text-primary hover:underline">
+            Back to pricing
+          </Link>
+        </div>
+      )}
+    </div>
+  );
+}

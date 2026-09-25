@@ -42,6 +42,7 @@ export async function proxy(request: NextRequest) {
     url.pathname.startsWith("/calendar") ||
     url.pathname.startsWith("/analytics") ||
     url.pathname.startsWith("/integrations") ||
+    url.pathname.startsWith("/billing") ||
     url.pathname.startsWith("/settings");
   if (isApp && !loggedIn) {
     return NextResponse.redirect(new URL("/login", url.origin));

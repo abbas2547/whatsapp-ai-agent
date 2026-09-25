@@ -1,7 +1,8 @@
 import { z } from "zod";
 import { AgentGoal, AgentStatus } from "@prisma/client";
 import { db } from "@/lib/db";
-import { AppError } from "@/lib/errors";
+import { AppError, LimitError } from "@/lib/errors";
+import { canCreateAgent } from "@/services/billing/entitlements";
 import { TOOL_NAMES } from "@/services/ai/tools/registry";
 import { writeAuditLog } from "@/services/audit/audit.service";
 
@@ -58,6 +59,14 @@ export async function getAgent(organizationId: string, id: string) {
 
 export async function createAgent(organizationId: string, userId: string, input: z.infer<typeof agentInputSchema>) {
   const parsed = agentInputSchema.parse(input);
+  const allowed = await canCreateAgent(organizationId);
+  if (!allowed.ok) {
+    throw new LimitError(
+      `${allowed.message} Upgrade to ${allowed.upgradePlan === "starter" ? "Starter" : allowed.upgradePlan === "pro" ? "Pro" : "Business"} to create more.`,
+      "LIMIT_REACHED_AGENTS",
+      allowed.upgradePlan,
+    );
+  }
   const phoneId = parsed.whatsappPhoneNumberId || undefined;
   if (phoneId) {
     const phone = await db.whatsAppPhoneNumber.findFirst({

@@ -135,7 +135,7 @@ export function AgentBuilder({
   const [publishOpen, setPublishOpen] = useState(false);
   const [dirty, setDirty] = useState(false);
   const [savedAt, setSavedAt] = useState<Date | null>(null);
-  const [saveError, setSaveError] = useState<string | null>(null);
+  const [saveError, setSaveError] = useState<{ message: string; upgradePlan?: "starter" | "pro" | "business" } | null>(null);
   const [values, setValues] = useState<AgentEditorValue>({
     id: agent?.id,
     name: agent?.name || "",
@@ -206,7 +206,10 @@ export function AgentBuilder({
         router.refresh();
         onDone?.(result.agent.id);
       } else {
-        setSaveError(result.error);
+        setSaveError({
+          message: result.error,
+          upgradePlan: "upgradePlan" in result ? (result.upgradePlan as "starter" | "pro" | "business" | undefined) : undefined,
+        });
         toast.error(result.error);
       }
     });
@@ -272,8 +275,16 @@ export function AgentBuilder({
               {values.status && <AgentStatusBadge status={values.status as "DRAFT" | "TESTING" | "ACTIVE" | "PAUSED"} />}
             </div>
             <p className="text-xs text-muted-foreground" role="status" aria-live="polite">
-              {pending ? "Saving…" : saveError ? `Unable to save — ${saveError}` : dirty ? "Unsaved changes" : savedAt ? `Saved ${savedAt.toLocaleTimeString()}` : values.id ? "No unsaved changes" : "New draft"}
+              {pending ? "Saving…" : saveError ? `Unable to save — ${saveError.message}` : dirty ? "Unsaved changes" : savedAt ? `Saved ${savedAt.toLocaleTimeString()}` : values.id ? "No unsaved changes" : "New draft"}
             </p>
+            {saveError?.upgradePlan ? (
+              <Link
+                href={`/pricing?plan=${saveError.upgradePlan}`}
+                className="mt-1 inline-flex w-fit items-center gap-1 text-xs font-semibold text-primary hover:underline"
+              >
+                Upgrade to {saveError.upgradePlan === "starter" ? "Starter" : saveError.upgradePlan === "pro" ? "Pro" : "Business"} to create more <ArrowRight className="h-3 w-3" />
+              </Link>
+            ) : null}
           </div>
         </div>
         <Button variant="outline" onClick={() => save()} loading={pending} disabled={pending || values.name.trim().length < 2}>

@@ -2,7 +2,8 @@ import { z } from "zod";
 import { db } from "@/lib/db";
 import { encryptSecret } from "@/lib/encryption";
 import { env } from "@/lib/env";
-import { AppError } from "@/lib/errors";
+import { AppError, LimitError } from "@/lib/errors";
+import { canConnectWhatsAppNumber } from "@/services/billing/entitlements";
 import { fetchPhoneNumber, resolveAccessToken, sendWhatsAppMessage } from "@/services/whatsapp/client";
 import { writeAuditLog } from "@/services/audit/audit.service";
 
@@ -15,6 +16,26 @@ const connectSchema = z.object({
 
 export async function connectWhatsApp(organizationId: string, userId: string, input: z.infer<typeof connectSchema>) {
   const parsed = connectSchema.parse(input);
+  // A phoneNumberId already owned by ANOTHER workspace must never be
+  // reassigned by upsert — reject the takeover attempt.
+  const existingNumber = await db.whatsAppPhoneNumber.findUnique({
+    where: { phoneNumberId: parsed.phoneNumberId },
+    select: { organizationId: true },
+  });
+  if (existingNumber && existingNumber.organizationId !== organizationId) {
+    throw new AppError("This WhatsApp number is already connected to another workspace.", "NUMBER_TAKEN", 409);
+  }
+  // Reconnecting our own number is free; only brand-new numbers count.
+  if (!existingNumber) {
+    const allowed = await canConnectWhatsAppNumber(organizationId);
+    if (!allowed.ok) {
+      throw new LimitError(
+        `${allowed.message} Upgrade to ${allowed.upgradePlan === "starter" ? "Starter" : allowed.upgradePlan === "pro" ? "Pro" : "Business"} to connect more.`,
+        "LIMIT_REACHED_NUMBERS",
+        allowed.upgradePlan,
+      );
+    }
+  }
   const encrypted = encryptSecret(parsed.accessToken);
   const lookup = await fetchPhoneNumber(parsed.phoneNumberId, parsed.accessToken);
 

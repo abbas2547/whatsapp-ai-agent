@@ -5,7 +5,8 @@ import { redirect } from "next/navigation";
 import { AgentGoal, AgentStatus, LeadStatus, MemberRole } from "@prisma/client";
 import { auth, signIn } from "@/auth";
 import { db } from "@/lib/db";
-import { AppError, ForbiddenError, UnauthorizedError, publicErrorMessage } from "@/lib/errors";
+import { AppError, ForbiddenError, LimitError, UnauthorizedError, publicErrorMessage } from "@/lib/errors";
+import { safeNextPath } from "@/lib/utils";
 import { assertAdmin, assertCanManageAgents, assertCanWrite, requireOrgContext } from "@/lib/tenant";
 import { registerWorkspace, updateMemberRole, createWorkspaceForUser } from "@/services/organization/organization.service";
 import { connectWhatsApp, sendHumanMessage } from "@/services/whatsapp/connect";
@@ -21,7 +22,10 @@ import { encryptSecret } from "@/lib/encryption";
 import { writeAuditLog } from "@/services/audit/audit.service";
 
 function fail(error: unknown) {
-  return { ok: false as const, error: publicErrorMessage(error) };
+  const code = error instanceof AppError ? error.code : undefined;
+  const extra =
+    error instanceof LimitError ? { upgradePlan: error.upgradePlan } : {};
+  return { ok: false as const, error: publicErrorMessage(error), code, ...extra };
 }
 
 export async function registerAction(formData: FormData) {
@@ -51,7 +55,8 @@ export async function registerAction(formData: FormData) {
   }
   // Spec flow is Register → Login (no auto sign-in): the new user signs in
   // explicitly so credentials are verified through the real auth provider.
-  redirect("/login?created=1");
+  const next = safeNextPath(formData.get("next"));
+  redirect(next ? `/login?created=1&next=${encodeURIComponent(next)}` : "/login?created=1");
 }
 
 export async function createWorkspaceAction(organizationName: string) {
@@ -130,6 +135,7 @@ export async function completeOnboardingAction() {
 export async function loginAction(formData: FormData) {
   const email = String(formData.get("email") || "").toLowerCase().trim();
   const password = String(formData.get("password") || "");
+  const next = safeNextPath(formData.get("next")) ?? "/dashboard";
   // Unknown account → explicit "not found" guidance (never auto-create).
   try {
     if (email) {
@@ -142,7 +148,7 @@ export async function loginAction(formData: FormData) {
     // If the lookup itself fails, fall through to the real auth attempt.
   }
   try {
-    await signIn("credentials", { email, password, redirectTo: "/dashboard" });
+    await signIn("credentials", { email, password, redirectTo: next });
   } catch (error) {
     if ((error as { digest?: string })?.digest?.startsWith("NEXT_REDIRECT")) throw error;
     return fail(new AppError("Incorrect password. Please try again.", "INVALID_LOGIN", 401));

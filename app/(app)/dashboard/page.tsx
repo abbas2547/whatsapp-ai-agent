@@ -3,6 +3,8 @@ import Link from "next/link";
 import { requireSessionOrRedirect } from "@/app/actions";
 import { db } from "@/lib/db";
 import { getDashboardMetrics, getRecentMessageVolume, getDashboardExtras } from "@/services/analytics/analytics.service";
+import { getActiveSubscription, getUsageSummary, isPaidActive } from "@/services/billing/entitlements";
+import { getPlan } from "@/services/billing/plans";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge, EmptyState, PageHeader } from "@/components/ui/badge";
@@ -14,6 +16,7 @@ import {
   Bot,
   CalendarCheck2,
   CheckCircle2,
+  CreditCard,
   Database,
   Inbox,
   MessagesSquare,
@@ -50,7 +53,7 @@ export default async function DashboardPage() {
   const session = await requireSessionOrRedirect();
   const orgId = session.user.organizationId!;
 
-  const [metrics, whatsapp, volumeSample, extras] = await Promise.all([
+  const [metrics, whatsapp, volumeSample, extras, subscription, usage] = await Promise.all([
     getDashboardMetrics(orgId),
     db.whatsAppPhoneNumber.findFirst({
       where: { organizationId: orgId },
@@ -59,6 +62,8 @@ export default async function DashboardPage() {
     }),
     getRecentMessageVolume(orgId, 14),
     getDashboardExtras(orgId),
+    getActiveSubscription(orgId),
+    getUsageSummary(orgId),
   ]);
 
   // Bucket real message counts per day (last 14 days). No invented data.
@@ -75,6 +80,10 @@ export default async function DashboardPage() {
   const aiPct = total ? Math.round((metrics.aiHandled / total) * 100) : 0;
 
   const connected = !!whatsapp;
+  const plan = getPlan(subscription.planId) ?? getPlan("free")!;
+  const paidActive = isPaidActive(subscription);
+  const showUsageWarning = usage.aiConversationsPct >= 80 && usage.aiConversationsPct < 100;
+  const usageExhausted = usage.aiConversationsPct >= 100;
 
   return (
     <div className="flex flex-col gap-6">
@@ -123,6 +132,75 @@ export default async function DashboardPage() {
           )}
         </CardContent>
       </Card>
+
+      {/* Billing status — real plan + real usage */}
+      <div className="grid gap-4 lg:grid-cols-5">
+        <Card className="lg:col-span-3">
+          <CardContent className="flex flex-wrap items-center gap-3 p-4 sm:p-5">
+            <span className="flex h-10 w-10 items-center justify-center rounded-2xl bg-primary/10">
+              <CreditCard className="h-5 w-5 text-primary" />
+            </span>
+            <div className="min-w-0 flex-1">
+              <p className="flex flex-wrap items-center gap-2 text-sm font-semibold">
+                {plan.name.toUpperCase()} PLAN
+                <Badge variant={paidActive ? "success" : "secondary"}>
+                  {paidActive ? "Active" : subscription.effectiveStatus === "FREE" ? "Free" : subscription.effectiveStatus}
+                </Badge>
+              </p>
+              <div className="mt-2 h-2.5 w-full max-w-md overflow-hidden rounded-full bg-muted" role="progressbar" aria-valuenow={Math.round(usage.aiConversationsPct)} aria-valuemin={0} aria-valuemax={100} aria-label="AI conversation usage">
+                <div
+                  className={usageExhausted ? "h-full rounded-full bg-red-500" : usage.aiConversationsPct >= 80 ? "h-full rounded-full bg-amber-500" : "h-full rounded-full bg-gradient-to-r from-emerald-500 to-emerald-400"}
+                  style={{ width: `${Math.min(100, Math.max(2, usage.aiConversationsPct))}%` }}
+                />
+              </div>
+              <p className="mt-1 text-xs tabular-nums text-muted-foreground">
+                {usage.aiConversationsUsed.toLocaleString("en-IN")} / {usage.aiConversationsLimit.toLocaleString("en-IN")} AI conversations
+                ({usage.aiConversationsPct.toFixed(1)}% used)
+              </p>
+            </div>
+            <Button asChild size="sm" variant={paidActive ? "outline" : "default"}>
+              <Link href="/billing">{paidActive ? "Manage plan" : "Upgrade"}</Link>
+            </Button>
+          </CardContent>
+        </Card>
+        <Card className="lg:col-span-2">
+          <CardContent className="flex h-full flex-col justify-center gap-1.5 p-4 sm:p-5">
+            {usageExhausted ? (
+              <>
+                <p className="text-sm font-semibold text-red-600 dark:text-red-400">AI quota exhausted</p>
+                <p className="text-[13px] text-muted-foreground">
+                  The AI has stopped replying until you upgrade. Your data and settings are untouched.
+                </p>
+                <Button asChild size="sm" className="mt-1 w-fit">
+                  <Link href="/pricing">View plans <ArrowRight /></Link>
+                </Button>
+              </>
+            ) : showUsageWarning ? (
+              <>
+                <p className="text-sm font-semibold">You&apos;ve used {Math.round(usage.aiConversationsPct)}% of your AI limit</p>
+                <p className="text-[13px] text-muted-foreground">
+                  Upgrade your plan to continue scaling your automation.
+                </p>
+                <Button asChild size="sm" variant="outline" className="mt-1 w-fit">
+                  <Link href="/pricing">View plans <ArrowRight /></Link>
+                </Button>
+              </>
+            ) : (
+              <>
+                <p className="text-sm font-semibold">{paidActive ? "Plan is healthy" : "Free plan active"}</p>
+                <p className="text-[13px] text-muted-foreground">
+                  {paidActive
+                    ? `Valid until ${subscription.currentPeriodEnd?.toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" }) ?? "—"}.`
+                    : `${(usage.aiConversationsLimit - usage.aiConversationsUsed).toLocaleString("en-IN")} AI conversations remaining this period.`}
+                </p>
+                <Button asChild size="sm" variant="outline" className="mt-1 w-fit">
+                  <Link href="/billing">Billing details <ArrowRight /></Link>
+                </Button>
+              </>
+            )}
+          </CardContent>
+        </Card>
+      </div>
 
       {/* Stats */}
       <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">

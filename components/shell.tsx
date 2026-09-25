@@ -30,6 +30,7 @@ import { Button } from "@/components/ui/button";
 import { initials } from "@/components/format";
 import { useDebouncedValue } from "@/hooks/use-debounce";
 import { InstallButton } from "@/components/pwa/install-button";
+import { UpgradeButton } from "@/components/billing/upgrade-button";
 import { WorkspaceSwitcher, type WorkspaceItem } from "@/components/shell/workspace-switcher";
 
 type NavItem = { href: string; label: string; icon: LucideIcon; badge?: number };
@@ -78,6 +79,8 @@ const TITLES: Record<string, string> = {
   analytics: "Analytics",
   integrations: "Integrations",
   settings: "Settings",
+  billing: "Billing",
+  pricing: "Pricing",
 };
 
 export function Shell({
@@ -86,6 +89,8 @@ export function Shell({
   organizationId,
   workspaces = [],
   alertCount = 0,
+  planId = "free",
+  paidActive = false,
   children,
 }: {
   user: { name?: string | null; email?: string | null; image?: string | null; role?: string };
@@ -93,6 +98,8 @@ export function Shell({
   organizationId?: string;
   workspaces?: WorkspaceItem[];
   alertCount?: number;
+  planId?: "free" | "starter" | "pro" | "business";
+  paidActive?: boolean;
   children: React.ReactNode;
 }) {
   const pathname = usePathname();
@@ -244,6 +251,9 @@ export function Shell({
               ))}
             </nav>
             <div className="border-t border-border p-3">
+              <div onClick={closeMobile} className="mb-2">
+                <UpgradeButton planId={planId} paidActive={paidActive} mobile />
+              </div>
               <UserFooter user={user} collapsed={false} />
             </div>
           </aside>
@@ -255,6 +265,8 @@ export function Shell({
         <TopBar
           organizationName={organizationName}
           alertCount={alertCount}
+          planId={planId}
+          paidActive={paidActive}
           onMenu={() => setMobileOpen(true)}
         />
         <main className="min-w-0 flex-1 px-4 py-5 sm:px-6 md:px-8 md:py-6">
@@ -333,10 +345,14 @@ function UserFooter({
 function TopBar({
   organizationName,
   alertCount,
+  planId,
+  paidActive,
   onMenu,
 }: {
   organizationName: string;
   alertCount: number;
+  planId: "free" | "starter" | "pro" | "business";
+  paidActive: boolean;
   onMenu: () => void;
 }) {
   const pathname = usePathname();
@@ -426,6 +442,8 @@ function TopBar({
           <span className="h-2 w-2 rounded-full bg-emerald-500" aria-hidden />
           Workspace
         </Link>
+
+        <UpgradeButton planId={planId} paidActive={paidActive} />
 
         <InstallButton />
       </div>

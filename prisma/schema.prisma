@@ -132,6 +132,25 @@ enum NotificationType {
   SYSTEM
 }
 
+enum SubscriptionStatus {
+  PENDING
+  TRIALING
+  ACTIVE
+  PAST_DUE
+  PAUSED
+  CANCELED
+  EXPIRED
+}
+
+enum PaymentStatus {
+  PENDING
+  PROCESSING
+  SUCCESS
+  FAILED
+  CANCELED
+  EXPIRED
+}
+
 model User {
   id             String   @id @default(cuid())
   email          String   @unique
@@ -216,6 +235,9 @@ model Organization {
   usageEvents          UsageEvent[]
   processedEvents      ProcessedWebhookEvent[]
   qualificationFields  QualificationField[]
+  subscription         Subscription?
+  payments             Payment[]
+  paymentEvents        PaymentEvent[]
 }
 
 model OrganizationMember {
@@ -694,4 +716,66 @@ model ProcessedWebhookEvent {
   organization   Organization? @relation(fields: [organizationId], references: [id], onDelete: Cascade)
 
   @@index([createdAt])
+}
+
+model Subscription {
+  id                   String             @id @default(cuid())
+  organizationId       String             @unique
+  planId               String             @default("free")
+  provider             String             @default("cashfree")
+  providerOrderId      String?
+  providerSubscriptionId String?
+  billingInterval      String?
+  status               SubscriptionStatus @default(PENDING)
+  currentPeriodStart   DateTime?
+  currentPeriodEnd     DateTime?
+  cancelAtPeriodEnd    Boolean            @default(false)
+  createdAt            DateTime           @default(now())
+  updatedAt            DateTime           @updatedAt
+  organization         Organization       @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  payments             Payment[]
+
+  @@index([status])
+}
+
+model Payment {
+  id                String        @id @default(cuid())
+  organizationId    String
+  subscriptionId    String?
+  reference         String        @unique
+  provider          String        @default("cashfree")
+  providerOrderId   String        @unique
+  providerPaymentId String?       @unique
+  planId            String
+  billingInterval   String
+  amountPaise       Int
+  currency          String        @default("INR")
+  status            PaymentStatus @default(PENDING)
+  paymentMethod     String?
+  customerEmail     String?
+  customerPhone     String?
+  rawPayload        Json?
+  createdAt         DateTime      @default(now())
+  updatedAt         DateTime      @updatedAt
+  organization      Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  subscription      Subscription? @relation(fields: [subscriptionId], references: [id], onDelete: SetNull)
+
+  @@index([organizationId, createdAt])
+  @@index([organizationId, status])
+}
+
+model PaymentEvent {
+  id              String    @id @default(cuid())
+  provider        String    @default("cashfree")
+  eventId         String
+  eventType       String
+  providerOrderId String?
+  payload         Json?
+  processedAt     DateTime?
+  createdAt       DateTime  @default(now())
+  organization    Organization? @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  organizationId  String?
+
+  @@unique([provider, eventId])
+  @@index([providerOrderId])
 }

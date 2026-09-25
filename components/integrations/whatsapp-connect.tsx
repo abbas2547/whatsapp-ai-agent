@@ -1,8 +1,10 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
+import { ArrowRight } from "lucide-react";
 import { connectWhatsAppAction } from "@/app/actions";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -28,9 +30,11 @@ export function WhatsAppConnectCard({
   const [token, setToken] = useState("");
   const [displayPhone, setDisplayPhone] = useState("");
   const [pending, startTransition] = useTransition();
+  const [failure, setFailure] = useState<{ message: string; upgradePlan?: "starter" | "pro" | "business" } | null>(null);
 
   function connect() {
     startTransition(async () => {
+      setFailure(null);
       const result = await connectWhatsAppAction({
         wabaId: waba.trim(),
         phoneNumberId: phoneNumberId.trim(),
@@ -42,6 +46,10 @@ export function WhatsAppConnectCard({
         setToken("");
         router.refresh();
       } else {
+        setFailure({
+          message: result.error,
+          upgradePlan: "upgradePlan" in result ? (result.upgradePlan as "starter" | "pro" | "business" | undefined) : undefined,
+        });
         toast.error(result.error);
       }
     });
@@ -106,6 +114,19 @@ export function WhatsAppConnectCard({
             <Button onClick={connect} disabled={pending || !waba.trim() || !phoneNumberId.trim() || token.trim().length < 10}>
               {pending ? "Connecting…" : "Connect WhatsApp"}
             </Button>
+            {failure ? (
+              <div className="rounded-xl border border-red-500/30 bg-red-500/[0.06] p-3" role="alert">
+                <p className="text-[13px] font-medium">{failure.message}</p>
+                {failure.upgradePlan ? (
+                  <Link
+                    href={`/pricing?plan=${failure.upgradePlan}`}
+                    className="mt-1.5 inline-flex items-center gap-1 text-xs font-semibold text-primary hover:underline"
+                  >
+                    Upgrade to {failure.upgradePlan === "starter" ? "Starter" : failure.upgradePlan === "pro" ? "Pro" : "Business"} to connect more <ArrowRight className="h-3 w-3" />
+                  </Link>
+                ) : null}
+              </div>
+            ) : null}
           </>
         )}
         <div className="rounded-lg bg-muted p-3">

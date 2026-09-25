@@ -21,10 +21,12 @@ export function LoginForm({
   googleEnabled,
   authError,
   justCreated,
+  next,
 }: {
   googleEnabled?: boolean;
   authError?: string;
   justCreated?: boolean;
+  next?: string;
 }) {
   const [state, formAction, pending] = useActionState(
     (_prev: Awaited<ReturnType<typeof loginAction>> | null, formData: FormData) => loginAction(formData),
@@ -43,6 +45,7 @@ export function LoginForm({
         </p>
       ) : null}
       <form action={formAction} className="flex flex-col gap-4">
+        {next ? <input type="hidden" name="next" value={next} /> : null}
         <div>
           <Label htmlFor="email">Email</Label>
           <Input
@@ -114,7 +117,7 @@ export function LoginForm({
             loading={googlePending}
             onClick={() => {
               setGooglePending(true);
-              signIn("google", { callbackUrl: "/dashboard" });
+              signIn("google", { callbackUrl: next ?? "/dashboard" });
             }}
           >
             {!googlePending && (

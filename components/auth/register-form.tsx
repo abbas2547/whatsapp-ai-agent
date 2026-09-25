@@ -7,7 +7,7 @@ import { registerAction } from "@/app/actions";
 import { Button } from "@/components/ui/button";
 import { Input, Label, FieldError, FieldHint } from "@/components/ui/input";
 
-export function RegisterForm() {
+export function RegisterForm({ next }: { next?: string }) {
   const [state, formAction, pending] = useActionState(
     (_prev: Awaited<ReturnType<typeof registerAction>> | null, formData: FormData) => registerAction(formData),
     null as Awaited<ReturnType<typeof registerAction>> | null,
@@ -16,6 +16,7 @@ export function RegisterForm() {
   return (
     <div>
       <form action={formAction} className="flex flex-col gap-4">
+        {next ? <input type="hidden" name="next" value={next} /> : null}
         <div className="grid gap-4 sm:grid-cols-2">
           <div>
             <Label htmlFor="name">Your name</Label>

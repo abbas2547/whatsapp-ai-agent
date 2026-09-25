@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { requireSessionOrRedirect } from "@/app/actions";
 import { db } from "@/lib/db";
 import { listUserWorkspaces } from "@/services/organization/organization.service";
+import { getActiveSubscription, isPaidActive } from "@/services/billing/entitlements";
 import { Shell } from "@/components/shell";
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
@@ -9,7 +10,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   const organizationId = session.user.organizationId!;
   const userId = session.user.id!;
 
-  const [organization, alertCount, workspaces] = await Promise.all([
+  const [organization, alertCount, workspaces, subscription] = await Promise.all([
     db.organization.findUnique({
       where: { id: organizationId },
       select: { name: true, onboardingCompletedAt: true },
@@ -18,6 +19,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       where: { organizationId, unreadCount: { gt: 0 } },
     }),
     listUserWorkspaces(userId),
+    getActiveSubscription(organizationId),
   ]);
 
   if (!organization) redirect("/onboarding");
@@ -35,6 +37,8 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       organizationId={organizationId}
       workspaces={workspaces}
       alertCount={alertCount}
+      planId={subscription.planId}
+      paidActive={isPaidActive(subscription)}
     >
       {children}
     </Shell>

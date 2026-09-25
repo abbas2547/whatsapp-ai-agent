@@ -36,6 +36,24 @@ export function daysAgo(days: number): Date {
   return new Date(Date.now() - days * 24 * 60 * 60 * 1000);
 }
 
+/**
+ * Validates a post-login return URL. Only same-origin absolute paths are
+ * allowed — never protocol-relative, backslashes, or external URLs. Returns
+ * null for anything unsafe (open-redirect protection).
+ */
+export function safeNextPath(value: unknown): string | null {
+  if (typeof value !== "string" || !value.startsWith("/") || value.startsWith("//")) return null;
+  if (value.includes("\\") || value.includes("://")) return null;
+  if (value.length > 500) return null;
+  try {
+    const normalized = new URL(value, "https://app.local").pathname + new URL(value, "https://app.local").search;
+    if (!normalized.startsWith("/")) return null;
+    return normalized;
+  } catch {
+    return null;
+  }
+}
+
 export function safeJson<T>(value: unknown, fallback: T): T {
   try {
     if (typeof value === "string") return JSON.parse(value) as T;

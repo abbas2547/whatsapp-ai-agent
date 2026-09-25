@@ -1,6 +1,7 @@
 import { db } from "@/lib/db";
 import { AppError } from "@/lib/errors";
 import { recordUsage } from "@/services/audit/audit.service";
+import { aiConversationAllowance } from "@/services/billing/entitlements";
 import { buildAgentSystemPrompt } from "@/services/ai/agent.service";
 import { getAIProvider, type AIMessage } from "@/services/ai/provider";
 import { executeAuthorizedTool, TOOL_DEFINITIONS, toAIToolSpec } from "@/services/ai/tools/registry";
@@ -35,6 +36,50 @@ export async function processAgentTurn(input: {
     if (!agent) throw new AppError("Agent not found", "NOT_FOUND", 404);
     if (input.mode === "production" && agent.status !== "ACTIVE") {
       throw new AppError("Agent is not active", "AGENT_INACTIVE");
+    }
+
+    // Plan enforcement (production only): when the monthly AI quota is
+    // exhausted, stop silently — no reply is sent (the webhook skips empty
+    // replies and records no usage), and the workspace is notified to
+    // upgrade. Test chats are never blocked.
+    if (input.mode === "production") {
+      const allowance = await aiConversationAllowance(input.organizationId);
+      if (!allowance.allowed) {
+        await db.auditLog
+          .create({
+            data: {
+              organizationId: input.organizationId,
+              action: "AI_LIMIT_REACHED",
+              entityType: "agent",
+              entityId: agent.id,
+              metadata: { used: allowance.used, limit: allowance.limit, plan: allowance.planId },
+            },
+          })
+          .catch(() => undefined);
+        const recent = await db.notification.findFirst({
+          where: {
+            organizationId: input.organizationId,
+            type: "SYSTEM",
+            read: false,
+            title: "AI conversation limit reached",
+            createdAt: { gte: new Date(Date.now() - 24 * 60 * 60 * 1000) },
+          },
+          select: { id: true },
+        });
+        if (!recent) {
+          await db.notification
+            .create({
+              data: {
+                organizationId: input.organizationId,
+                type: "SYSTEM",
+                title: "AI conversation limit reached",
+                body: `Used ${allowance.used.toLocaleString("en-IN")} of ${allowance.limit.toLocaleString("en-IN")} AI conversations this period. Upgrade the plan to keep the AI replying.`,
+              },
+            })
+            .catch(() => undefined);
+        }
+        return { reply: "", toolCalls, knowledgeUsed, responseTimeMs: Date.now() - started, error: "AI_LIMIT_REACHED" };
+      }
     }
 
     const contact = input.contactId

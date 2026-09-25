@@ -26,6 +26,17 @@ export class NotFoundError extends AppError {
   }
 }
 
+/** Plan-limit error carrying the recommended upgrade tier for UI CTAs. */
+export class LimitError extends AppError {
+  constructor(
+    message: string,
+    code: "LIMIT_REACHED_AGENTS" | "LIMIT_REACHED_NUMBERS" | "LIMIT_REACHED_CONVERSATIONS" | "LIMIT_REACHED_CONTACTS",
+    public upgradePlan: "starter" | "pro" | "business",
+  ) {
+    super(message, code, 403);
+  }
+}
+
 function prismaCode(error: unknown): string | undefined {
   if (typeof error !== "object" || error === null) return undefined;
   const record = error as Record<string, unknown>;

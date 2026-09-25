@@ -1,10 +1,13 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { requireSessionOrRedirect } from "@/app/actions";
 import { listMembers } from "@/services/organization/organization.service";
 import { db } from "@/lib/db";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge, PageHeader } from "@/components/ui/badge";
 import { StatCard } from "@/components/ui/stat";
+import { getActiveSubscription, getUsageSummary, isPaidActive } from "@/services/billing/entitlements";
+import { getPlan } from "@/services/billing/plans";
 import { OrgNameForm, MemberRow, QualificationFieldsEditor } from "@/components/settings";
 import { fmtDateTime, relTime } from "@/components/format";
 import { daysAgo } from "@/lib/utils";
@@ -115,13 +118,11 @@ export default async function SettingsPage() {
           </section>
 
           <section id="billing" className="scroll-mt-20">
-            <Card className="border-amber-500/30">
+            <BillingSettingsSection orgId={orgId} />
+            <Card className="mt-4">
               <CardHeader>
-                <CardTitle className="flex items-center gap-2">Billing & plan <Badge variant="warning">Not configured</Badge></CardTitle>
-                <CardDescription>
-                  No payment gateway is connected, so there is no active subscription. Nothing is billed and no
-                  premium features are unlocked by the UI — usage below is real metered activity.
-                </CardDescription>
+                <CardTitle>Workspace activity</CardTitle>
+                <CardDescription>Real metered activity for the trailing 30 days.</CardDescription>
               </CardHeader>
               <CardContent>
                 <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
@@ -130,11 +131,6 @@ export default async function SettingsPage() {
                   <StatCard label="Workflow runs (30d)" value={runsUsed} icon={Zap} />
                   <StatCard label="Knowledge docs" value={docsStored} icon={Database} />
                 </div>
-                <p className="mt-3 flex items-start gap-1.5 text-xs leading-5 text-muted-foreground">
-                  <TriangleAlert className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-                  Payment status always comes from verified server-side gateway/webhook data. Connect a gateway to
-                  enable plans, renewals and invoices.
-                </p>
               </CardContent>
             </Card>
           </section>
@@ -190,5 +186,41 @@ export default async function SettingsPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+async function BillingSettingsSection({ orgId }: { orgId: string }) {
+  const [sub, usage] = await Promise.all([getActiveSubscription(orgId), getUsageSummary(orgId)]);
+  const plan = getPlan(sub.planId) ?? getPlan("free")!;
+  const paidActive = isPaidActive(sub);
+  return (
+    <Card className={paidActive ? "border-emerald-500/30" : undefined}>
+      <CardHeader className="flex-row items-start justify-between gap-3 space-y-0">
+        <div>
+          <CardTitle className="flex items-center gap-2">
+            Billing & plan{" "}
+            <Badge variant={paidActive ? "success" : "secondary"}>
+              {plan.name}
+            </Badge>
+          </CardTitle>
+          <CardDescription>
+            {paidActive
+              ? `Active until ${sub.currentPeriodEnd?.toLocaleDateString("en-IN", { day: "numeric", month: "long", year: "numeric" }) ?? "—"}.`
+              : "Free plan — upgrade for higher limits."}{" "}
+            {usage.aiConversationsUsed.toLocaleString("en-IN")} / {usage.aiConversationsLimit.toLocaleString("en-IN")} AI conversations used.
+          </CardDescription>
+        </div>
+      </CardHeader>
+      <CardContent>
+        <div className="flex flex-wrap gap-2">
+          <Link href="/billing" className="inline-flex h-9 items-center rounded-xl bg-primary px-4 text-[13px] font-bold text-primary-foreground shadow-sm transition-all hover:brightness-110">
+            {paidActive ? "Manage billing" : "Upgrade plan"}
+          </Link>
+          <Link href="/pricing" className="inline-flex h-9 items-center rounded-xl border border-border bg-card px-4 text-[13px] font-semibold shadow-sm transition-colors hover:bg-muted">
+            Compare plans
+          </Link>
+        </div>
+      </CardContent>
+    </Card>
   );
 }
