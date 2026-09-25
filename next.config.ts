@@ -1,7 +1,27 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  /* config options here */
+  compress: true,
+  poweredByHeader: false,
+  images: {
+    remotePatterns: [],
+    formats: ["image/avif", "image/webp"],
+  },
+  // Local dev speed (project lives on a slow external USB HDD):
+  // - turbopackFileSystemCacheForDev: persistent Turbopack cache, warm restarts
+  // - optimizePackageImports: pre-optimize big barrel packages so each page
+  //   compiles faster in dev
+  experimental: {
+    turbopackFileSystemCacheForDev: true,
+    optimizePackageImports: [
+      "lucide-react",
+      "@xyflow/react",
+      "date-fns",
+      "framer-motion",
+      "react-hook-form",
+      "sonner",
+    ],
+  },
 };
 
 export default nextConfig;

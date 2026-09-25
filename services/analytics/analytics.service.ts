@@ -1,0 +1,139 @@
+import { db } from "@/lib/db";
+
+export async function getDashboardMetrics(organizationId: string) {
+  const since = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+  const [
+    conversations,
+    unread,
+    leads,
+    qualified,
+    appointments,
+    aiHandled,
+    humanHandled,
+    automations,
+    recentConversations,
+    recentLeads,
+  ] = await Promise.all([
+    db.conversation.count({ where: { organizationId } }),
+    db.conversation.count({ where: { organizationId, unreadCount: { gt: 0 } } }),
+    db.lead.count({ where: { organizationId } }),
+    db.lead.count({ where: { organizationId, status: "QUALIFIED" } }),
+    db.appointment.count({ where: { organizationId, startAt: { gte: new Date() } } }),
+    db.message.count({ where: { organizationId, senderType: "AI", createdAt: { gte: since } } }),
+    db.message.count({ where: { organizationId, senderType: "HUMAN", createdAt: { gte: since } } }),
+    db.workflowExecution.count({ where: { organizationId, startedAt: { gte: since } } }),
+    db.conversation.findMany({
+      where: { organizationId },
+      include: { contact: true, messages: { take: 1, orderBy: { createdAt: "desc" } } },
+      orderBy: { lastMessageAt: "desc" },
+      take: 6,
+    }),
+    db.lead.findMany({
+      where: { organizationId },
+      include: { contact: true },
+      orderBy: { createdAt: "desc" },
+      take: 6,
+    }),
+  ]);
+
+  return {
+    conversations,
+    unread,
+    leads,
+    qualified,
+    appointments,
+    aiHandled,
+    humanHandled,
+    automations,
+    recentConversations,
+    recentLeads,
+  };
+}
+
+export async function getRecentMessageVolume(organizationId: string, days = 14) {
+  const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
+  return db.message.findMany({
+    where: { organizationId, createdAt: { gte: since } },
+    select: { createdAt: true },
+    orderBy: { createdAt: "asc" },
+    take: 1500,
+  });
+}
+
+export async function getAnalytics(organizationId: string, days = 30) {
+  const range = [7, 30, 90].includes(days) ? days : 30;
+  const since = new Date(Date.now() - range * 24 * 60 * 60 * 1000);
+  const [
+    received,
+    sent,
+    conversations,
+    aiConversations,
+    humanConversations,
+    handoffs,
+    leadsCreated,
+    qualifiedLeads,
+    appointments,
+    workflowExecutions,
+    workflowFailures,
+    aiUsage,
+    sampleMessages,
+  ] = await Promise.all([
+    db.message.count({ where: { organizationId, direction: "INBOUND", createdAt: { gte: since } } }),
+    db.message.count({ where: { organizationId, direction: "OUTBOUND", createdAt: { gte: since } } }),
+    db.conversation.count({ where: { organizationId } }),
+    db.conversation.count({ where: { organizationId, status: "AI_ACTIVE" } }),
+    db.conversation.count({ where: { organizationId, status: { in: ["HUMAN_ACTIVE", "WAITING_FOR_HUMAN"] } } }),
+    db.conversation.count({ where: { organizationId, takeoverReason: { not: null } } }),
+    db.lead.count({ where: { organizationId, createdAt: { gte: since } } }),
+    db.lead.count({ where: { organizationId, status: "QUALIFIED" } }),
+    db.appointment.count({ where: { organizationId } }),
+    db.workflowExecution.count({ where: { organizationId, startedAt: { gte: since } } }),
+    db.workflowExecution.count({ where: { organizationId, status: "FAILED", startedAt: { gte: since } } }),
+    db.usageEvent.aggregate({
+      where: { organizationId, type: "ai.tokens", createdAt: { gte: since } },
+      _sum: { quantity: true },
+    }),
+    db.message.findMany({
+      where: { organizationId, createdAt: { gte: since } },
+      select: { conversationId: true, senderType: true, createdAt: true },
+      orderBy: { createdAt: "asc" },
+      take: 2000,
+    }),
+  ]);
+
+  const firstInbound = new Map<string, Date>();
+  const firstOutbound = new Map<string, Date>();
+  for (const message of sampleMessages) {
+    if (message.senderType === "CUSTOMER" && !firstInbound.has(message.conversationId)) {
+      firstInbound.set(message.conversationId, message.createdAt);
+    }
+    if ((message.senderType === "AI" || message.senderType === "HUMAN") && !firstOutbound.has(message.conversationId)) {
+      firstOutbound.set(message.conversationId, message.createdAt);
+    }
+  }
+  const deltas: number[] = [];
+  for (const [id, inbound] of firstInbound) {
+    const outbound = firstOutbound.get(id);
+    if (outbound && outbound > inbound) deltas.push(outbound.getTime() - inbound.getTime());
+  }
+  const avgResponseMs = deltas.length ? Math.round(deltas.reduce((a, b) => a + b, 0) / deltas.length) : null;
+  const insufficient = received + sent + conversations < 3;
+
+  return {
+    insufficient,
+    range,
+    received,
+    sent,
+    conversations,
+    aiConversations,
+    humanConversations,
+    handoffRate: conversations ? Math.round((handoffs / conversations) * 100) : 0,
+    leadsCreated,
+    qualifiedLeads,
+    appointments,
+    avgResponseMs,
+    workflowExecutions,
+    workflowFailures,
+    aiUsage: aiUsage._sum.quantity || 0,
+  };
+}
