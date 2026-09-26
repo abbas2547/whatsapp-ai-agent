@@ -118,7 +118,11 @@ export async function addTag(organizationId: string, contactId: string, name: st
 export async function removeTag(organizationId: string, contactId: string, name: string) {
   const tag = await db.tag.findUnique({ where: { organizationId_name: { organizationId, name } } });
   if (!tag) return { removed: false };
-  await db.contactTag.deleteMany({ where: { contactId, tagId: tag.id } });
+  // Verify the contact belongs to this org before deleting the link
+  // (prevents a forged contactId from unlinking another workspace's tags).
+  const contact = await db.contact.findFirst({ where: { id: contactId, organizationId }, select: { id: true } });
+  if (!contact) throw new AppError("Contact not found", "NOT_FOUND", 404);
+  await db.contactTag.deleteMany({ where: { contactId: contact.id, tagId: tag.id } });
   return { removed: true };
 }
 

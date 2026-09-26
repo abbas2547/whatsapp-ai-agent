@@ -1,10 +1,12 @@
 "use client";
 
+import { useRouter } from "next/navigation";
 import { CircleAlert } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 
-export default function Error({ error, reset }: { error: Error & { digest?: string }; reset: () => void }) {
+export default function Error({ reset }: { error: Error & { digest?: string }; reset: () => void }) {
+  const router = useRouter();
   return (
     <div className="mx-auto max-w-lg py-10">
       <Card className="p-8 text-center">
@@ -15,7 +17,7 @@ export default function Error({ error, reset }: { error: Error & { digest?: stri
         </p>
         <CardContent className="flex justify-center gap-2 p-0 pt-5">
           <Button onClick={reset}>Try again</Button>
-          <Button variant="outline" onClick={() => (window.location.href = "/dashboard")}>
+          <Button variant="outline" onClick={() => router.push("/dashboard")}>
             Go to dashboard
           </Button>
         </CardContent>

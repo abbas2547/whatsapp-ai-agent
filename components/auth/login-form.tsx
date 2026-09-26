@@ -75,18 +75,7 @@ export function LoginForm({
             required
           />
         </div>
-        {state && !state.ok && (state as { code?: string }).code === "ACCOUNT_NOT_FOUND" ? (
-          <div className="rounded-xl border border-amber-500/30 bg-amber-500/[0.07] p-3" role="alert">
-            <p className="text-[13px] font-semibold">Account not found</p>
-            <p className="mt-0.5 text-[13px] text-muted-foreground">
-              You don&apos;t have an account yet. Create your account to continue.
-            </p>
-            <Button asChild variant="outline" size="sm" className="mt-2.5">
-              <Link href="/register">Create account</Link>
-            </Button>
-          </div>
-        ) : null}
-        {state && !state.ok && (state as { code?: string }).code !== "ACCOUNT_NOT_FOUND" ? (
+        {state && !state.ok ? (
           <FieldError>
             <span className="flex items-start gap-1.5">
               <CircleAlert className="mt-0.5 h-3.5 w-3.5 shrink-0" /> {state.error}

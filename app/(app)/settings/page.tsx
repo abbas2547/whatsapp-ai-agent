@@ -21,7 +21,6 @@ import {
   Sparkles,
   Zap,
   Database,
-  TriangleAlert,
 } from "lucide-react";
 
 export const metadata: Metadata = { title: "Settings" };

@@ -3,7 +3,7 @@ import Link from "next/link";
 import { requireSessionOrRedirect } from "@/app/actions";
 import { getAnalytics } from "@/services/analytics/analytics.service";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { Badge, EmptyState, PageHeader } from "@/components/ui/badge";
+import { Badge, PageHeader } from "@/components/ui/badge";
 import { StatCard } from "@/components/ui/stat";
 import { Activity, ArrowDown, ArrowUp, Bot, CalendarCheck2, Crosshair, Fingerprint, MessageSquare, Timer, Zap, TriangleAlert } from "lucide-react";
 import { cn } from "@/lib/utils";

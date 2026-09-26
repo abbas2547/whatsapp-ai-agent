@@ -4,7 +4,7 @@ import { useState } from "react";
 import { ShieldCheck, TriangleAlert } from "lucide-react";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { Input, Label, FieldError } from "@/components/ui/input";
+import { Input, Label } from "@/components/ui/input";
 import { formatINR, type BillingInterval, type PlanDef } from "@/services/billing/plans";
 import { CashfreeCheckout } from "@/components/billing/cashfree-checkout";
 

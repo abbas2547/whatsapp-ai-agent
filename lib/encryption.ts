@@ -56,3 +56,30 @@ export function verifyState(state: string): string | null {
   if (actual.length !== expected.length || !timingSafeEqual(actual, expected)) return null;
   return value;
 }
+
+/** Constant-time string comparison for webhook tokens / secrets. */
+export function timingSafeCompare(a: string, b: string): boolean {
+  if (!a || !b) return false;
+  const ab = Buffer.from(a);
+  const bb = Buffer.from(b);
+  return ab.length === bb.length && timingSafeEqual(ab, bb);
+}
+
+/**
+ * Verify a Meta (WhatsApp) webhook signature.
+ * signature header: "sha256=<hex HMAC-SHA256(APP_SECRET, rawBody)>"
+ */
+export function verifyMetaSignature(appSecret: string, rawBody: string, signatureHeader: string | null): boolean {
+  if (!appSecret || !signatureHeader) return false;
+  const prefix = "sha256=";
+  const hex = signatureHeader.startsWith(prefix) ? signatureHeader.slice(prefix.length) : signatureHeader;
+  let actual: Buffer;
+  try {
+    actual = Buffer.from(hex, "hex");
+  } catch {
+    return false;
+  }
+  if (!actual.length) return false;
+  const expected = createHmac("sha256", appSecret).update(rawBody, "utf8").digest();
+  return actual.length === expected.length && timingSafeEqual(actual, expected);
+}

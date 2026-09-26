@@ -8,6 +8,12 @@ export async function sendGmail(
   organizationId: string,
   input: { to: string; subject: string; body: string },
 ) {
+  const to = input.to.trim();
+  const subject = input.subject.replace(/[\r\n]/g, " ").slice(0, 200) || "Notification";
+  const body = input.body.slice(0, 20_000);
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(to) || to.length > 254) {
+    throw new AppError("EMAIL node needs a valid recipient address.", "INVALID_EMAIL", 400);
+  }
   const cred = await db.apiCredential.findFirst({
     where: { organizationId, provider: "google" },
     orderBy: { updatedAt: "desc" },
@@ -23,7 +29,7 @@ export async function sendGmail(
   oauth.setCredentials(tokens);
   const gmail = google.gmail({ version: "v1", auth: oauth });
   const raw = Buffer.from(
-    `To: ${input.to}\r\nSubject: ${input.subject}\r\nContent-Type: text/plain; charset=utf-8\r\n\r\n${input.body}`,
+    `To: ${to}\r\nSubject: ${subject}\r\nContent-Type: text/plain; charset=utf-8\r\n\r\n${body}`,
   )
     .toString("base64")
     .replace(/\+/g, "-")

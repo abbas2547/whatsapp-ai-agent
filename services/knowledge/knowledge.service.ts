@@ -5,6 +5,11 @@ import { AppError } from "@/lib/errors";
 import { getAIProvider } from "@/services/ai/provider";
 import { writeAuditLog } from "@/services/audit/audit.service";
 
+// Cap stored/extracted text so a giant PDF can't blow up the DB or the
+// embedding bill. Upload route rejects above this; service enforces too.
+export const MAX_KB_CONTENT_CHARS = 200_000;
+const MAX_KB_NAME_LENGTH = 120;
+
 export async function listKnowledgeBases(organizationId: string) {
   return db.knowledgeBase.findMany({
     where: { organizationId },
@@ -60,25 +65,31 @@ export async function addDocument(input: {
   });
   if (!kb) throw new AppError("Knowledge base not found", "NOT_FOUND", 404);
 
+  const content = input.content.slice(0, MAX_KB_CONTENT_CHARS);
+  if (!content.trim()) throw new AppError("Document has no readable text", "NO_CONTENT", 400);
+  const name = input.name.replace(/[<>:"|?*\x00-\x1f]/g, "").trim().slice(0, MAX_KB_NAME_LENGTH) || "document";
+
   const doc = await db.knowledgeDocument.create({
     data: {
       organizationId: input.organizationId,
       knowledgeBaseId: input.knowledgeBaseId,
-      name: input.name,
+      name,
       sourceType: input.sourceType,
       mimeType: input.mimeType,
-      sizeBytes: input.sizeBytes || Buffer.byteLength(input.content),
+      sizeBytes: input.sizeBytes || Buffer.byteLength(content),
       status: "PROCESSING",
-      content: input.content,
+      content,
     },
   });
 
+  const orgId = input.organizationId;
   after(() =>
-    processDocument(doc.id).catch(async (error) => {
+    processDocument(doc.id, orgId).catch(async (error) => {
       await db.knowledgeDocument.update({
         where: { id: doc.id },
-        data: { status: "FAILED", error: error instanceof Error ? error.message : "Processing failed" },
+        data: { status: "FAILED", error: "Processing failed. Please retry." },
       });
+      console.error("[knowledge] process failed:", error instanceof Error ? error.message : "unknown");
     }),
   );
 
@@ -116,10 +127,10 @@ export async function retryDocument(organizationId: string, userId: string, docu
     data: { status: "PROCESSING", error: null, chunkCount: 0 },
   });
   after(() =>
-    processDocument(doc.id).catch(async (error) => {
+    processDocument(doc.id, organizationId).catch(async () => {
       await db.knowledgeDocument.update({
         where: { id: doc.id },
-        data: { status: "FAILED", error: error instanceof Error ? error.message : "Processing failed" },
+        data: { status: "FAILED", error: "Processing failed. Please retry." },
       });
     }),
   );
@@ -142,9 +153,14 @@ export async function getDocumentExcerpt(organizationId: string, documentId: str
   return { ...doc, content: (doc.content || "").slice(0, length) };
 }
 
-export async function processDocument(documentId: string) {
+export async function processDocument(documentId: string, expectedOrganizationId?: string) {
   const doc = await db.knowledgeDocument.findUnique({ where: { id: documentId } });
   if (!doc?.content) throw new Error("Document missing content");
+  // Defense-in-depth: background job re-verifies org ownership so a forged
+  // documentId can never process another workspace's document.
+  if (expectedOrganizationId && doc.organizationId !== expectedOrganizationId) {
+    throw new Error("Document organization mismatch");
+  }
   const chunks = chunkText(doc.content);
   const provider = getAIProvider();
   const embeddings = chunks.length ? await provider.embed(chunks) : [];

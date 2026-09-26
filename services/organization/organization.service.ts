@@ -32,6 +32,9 @@ export async function registerWorkspace(input: {
   const existing = await db.user.findUnique({ where: { email } });
   if (existing) throw new AppError("An account with this email already exists", "EMAIL_TAKEN", 409);
 
+  if (!input.password || input.password.length < 8 || input.password.length > 72) {
+    throw new AppError("Password must be between 8 and 72 characters", "INVALID_PASSWORD", 400);
+  }
   const passwordHash = await bcrypt.hash(input.password, 12);
   const slug = await uniqueSlug(slugify(input.organizationName) || "workspace");
 

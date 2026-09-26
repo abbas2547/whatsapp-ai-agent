@@ -4,7 +4,7 @@ const envSchema = z.object({
   NODE_ENV: z.string().optional(),
   DATABASE_URL: z.string().min(1),
   DIRECT_URL: z.string().optional(),
-  NEXTAUTH_SECRET: z.string().min(16),
+  NEXTAUTH_SECRET: z.string().min(32, "NEXTAUTH_SECRET must be at least 32 characters (generate with `openssl rand -base64 32`)"),
   NEXTAUTH_URL: z.string().optional(),
   NEXT_PUBLIC_APP_URL: z.string().optional(),
   GEMINI_API_KEY: z.string().optional(),
@@ -50,7 +50,7 @@ export function isPlaceholder(value?: string | null) {
   return (
     v.length === 0 ||
     v.includes("your_") ||
-    v.includes("here") && v.startsWith("your") ||
+    (v.startsWith("your") && v.includes("here")) ||
     v === "changeme"
   );
 }

@@ -21,24 +21,26 @@ export function PaymentStatus({ orderId, expect }: { orderId: string; expect: "s
   const [checking, setChecking] = useState(true);
   const [attempt, setAttempt] = useState(0);
 
-  async function check() {
-    setChecking(true);
-    setError(null);
-    try {
-      const res = await fetch(`/api/billing/status?order_id=${encodeURIComponent(orderId)}`, { cache: "no-store" });
-      const json = (await res.json().catch(() => null)) as { ok?: boolean; order?: Verified; error?: string } | null;
-      if (!res.ok || !json?.ok || !json.order) throw new Error(json?.error || "Could not verify payment.");
-      setData(json.order);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Could not verify payment.");
-    } finally {
-      setChecking(false);
-    }
-  }
-
   useEffect(() => {
+    let cancelled = false;
+    async function check() {
+      setChecking(true);
+      setError(null);
+      try {
+        const res = await fetch(`/api/billing/status?order_id=${encodeURIComponent(orderId)}`, { cache: "no-store" });
+        const json = (await res.json().catch(() => null)) as { ok?: boolean; order?: Verified; error?: string } | null;
+        if (!res.ok || !json?.ok || !json.order) throw new Error(json?.error || "Could not verify payment.");
+        if (!cancelled) setData(json.order);
+      } catch (e) {
+        if (!cancelled) setError(e instanceof Error ? e.message : "Could not verify payment.");
+      } finally {
+        if (!cancelled) setChecking(false);
+      }
+    }
     check();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    return () => {
+      cancelled = true;
+    };
   }, [orderId, attempt]);
 
   // Auto-refresh while the provider is still confirming (max ~30s).

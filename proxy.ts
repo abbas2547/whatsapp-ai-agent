@@ -45,7 +45,14 @@ export async function proxy(request: NextRequest) {
     url.pathname.startsWith("/billing") ||
     url.pathname.startsWith("/settings");
   if (isApp && !loggedIn) {
-    return NextResponse.redirect(new URL("/login", url.origin));
+    // Preserve destination so login can send the user back (open-redirect
+    // safe: only the pathname+search of the same origin is echoed).
+    const loginUrl = new URL("/login", url.origin);
+    const dest = `${url.pathname}${url.search}`.slice(0, 500);
+    if (dest.startsWith("/") && !dest.startsWith("//") && !dest.includes("\\")) {
+      loginUrl.searchParams.set("next", dest);
+    }
+    return NextResponse.redirect(loginUrl);
   }
   if ((url.pathname === "/login" || url.pathname === "/register") && loggedIn) {
     return NextResponse.redirect(new URL(token?.organizationId ? "/dashboard" : "/onboarding", url.origin));
