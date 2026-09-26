@@ -4,7 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { useActionState } from "react";
 import { signIn } from "next-auth/react";
-import { CircleAlert, CircleCheck } from "lucide-react";
+import { CircleAlert, CircleCheck, Eye, EyeOff } from "lucide-react";
 import { loginAction } from "@/app/actions";
 import { Button } from "@/components/ui/button";
 import { Input, Label, FieldError } from "@/components/ui/input";
@@ -13,6 +13,16 @@ const AUTH_ERRORS: Record<string, string> = {
   OAuthAccountNotLinked:
     "This email is already registered with password login. Log in with your email and password instead.",
   CredentialsSignin: "Invalid email or password.",
+  // OAuth round-trip failures (expired tab, restarted server, pop-up
+  // blockers, or opening the app under a different host mid-flow): the fix is
+  // always to start the Google sign-in again from this page.
+  OAuthSignin: "Couldn't start Google sign-in. Please try again.",
+  OAuthCallback: "Google sign-in was interrupted. Please click “Continue with Google” again.",
+  OAuthCreateAccount: "Couldn't create your account with Google. Please try again.",
+  EmailCreateAccount: "Couldn't create your account. Please try again.",
+  Callback: "This sign-in link expired. Please start the sign-in again.",
+  Verification: "This sign-in link is invalid or expired. Please try again.",
+  SessionRequired: "Please log in to continue.",
   Configuration: "Login is temporarily unavailable. Please try again in a moment.",
   AccessDenied: "Access denied. Please try a different account.",
 };
@@ -33,9 +43,27 @@ export function LoginForm({
     null as Awaited<ReturnType<typeof loginAction>> | null,
   );
   const [googlePending, setGooglePending] = useState(false);
+  const [googleError, setGoogleError] = useState<string | null>(null);
+  const [showPassword, setShowPassword] = useState(false);
   const [email, setEmail] = useState("");
 
   const providerError = authError ? AUTH_ERRORS[authError] || "Couldn't log you in. Please try again." : null;
+
+  async function handleGoogle() {
+    if (googlePending) return;
+    setGooglePending(true);
+    setGoogleError(null);
+    try {
+      // redirect:true navigates the browser to Google on success. If the app
+      // server itself is unreachable the call throws — surface that instead
+      // of spinning forever.
+      await signIn("google", { callbackUrl: next ?? "/dashboard" });
+    } catch {
+      setGoogleError("Couldn't reach the login server. Make sure the app is running (npm run dev), then try again.");
+    } finally {
+      setGooglePending(false);
+    }
+  }
 
   return (
     <div>
@@ -66,14 +94,26 @@ export function LoginForm({
               Forgot password?
             </Link>
           </div>
-          <Input
-            id="password"
-            name="password"
-            type="password"
-            autoComplete="current-password"
-            placeholder="••••••••"
-            required
-          />
+          <div className="relative">
+            <Input
+              id="password"
+              name="password"
+              type={showPassword ? "text" : "password"}
+              autoComplete="current-password"
+              placeholder="••••••••"
+              maxLength={72}
+              className="pr-11"
+              required
+            />
+            <button
+              type="button"
+              onClick={() => setShowPassword((v) => !v)}
+              aria-label={showPassword ? "Hide password" : "Show password"}
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground transition-colors hover:text-foreground"
+            >
+              {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+            </button>
+          </div>
         </div>
         {state && !state.ok ? (
           <FieldError>
@@ -100,14 +140,12 @@ export function LoginForm({
             <div className="h-px flex-1 bg-border" />
           </div>
           <Button
+            type="button"
             variant="outline"
             className="w-full"
             size="lg"
             loading={googlePending}
-            onClick={() => {
-              setGooglePending(true);
-              signIn("google", { callbackUrl: next ?? "/dashboard" });
-            }}
+            onClick={handleGoogle}
           >
             {!googlePending && (
               <svg className="h-4 w-4" viewBox="0 0 24 24" aria-hidden>
@@ -119,6 +157,11 @@ export function LoginForm({
             )}
             Continue with Google
           </Button>
+          {googleError ? (
+            <p className="mt-2.5 flex items-start gap-1.5 text-xs font-medium text-red-600 dark:text-red-400" role="alert">
+              <CircleAlert className="mt-0.5 h-3.5 w-3.5 shrink-0" /> {googleError}
+            </p>
+          ) : null}
         </>
       ) : null}
 

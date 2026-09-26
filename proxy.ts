@@ -29,9 +29,9 @@ async function getSessionToken(request: NextRequest) {
 }
 
 export async function proxy(request: NextRequest) {
+  const url = new URL(request.url);
   const token = await getSessionToken(request);
   const loggedIn = !!token;
-  const url = new URL(request.url);
   const isApp = url.pathname.startsWith("/dashboard") ||
     url.pathname.startsWith("/inbox") ||
     url.pathname.startsWith("/contacts") ||

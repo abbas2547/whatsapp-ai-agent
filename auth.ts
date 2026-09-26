@@ -13,6 +13,10 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
   session: { strategy: "jwt" },
   pages: {
     signIn: "/login",
+    // Never render Auth.js's built-in error page (it can 500 in some
+    // environments): all provider failures land on /login?error=… where the
+    // login form shows a friendly, actionable message.
+    error: "/login",
   },
   providers: [
     ...(!isPlaceholder(env().GOOGLE_CLIENT_ID) && !isPlaceholder(env().GOOGLE_CLIENT_SECRET)
