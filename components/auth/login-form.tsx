@@ -123,9 +123,21 @@ export function LoginForm({
           </FieldError>
         ) : null}
         {providerError ? (
-          <p className="flex items-start gap-1.5 text-xs font-medium text-red-600 dark:text-red-400" role="alert">
-            <CircleAlert className="mt-0.5 h-3.5 w-3.5 shrink-0" /> {providerError}
-          </p>
+          <div className="rounded-xl border border-red-500/25 bg-red-500/[0.06] p-3" role="alert">
+            <p className="flex items-start gap-1.5 text-xs font-medium text-red-600 dark:text-red-400">
+              <CircleAlert className="mt-0.5 h-3.5 w-3.5 shrink-0" /> {providerError}
+            </p>
+            <p className="mt-1.5 text-xs leading-5 text-muted-foreground">
+              This usually means the previous sign-in was interrupted.{" "}
+              <Link
+                href={next ? `/login?next=${encodeURIComponent(next)}` : "/login"}
+                className="font-semibold text-primary hover:underline"
+              >
+                Start again
+              </Link>{" "}
+              from this page and complete Google sign-in in the same tab.
+            </p>
+          </div>
         ) : null}
         <Button type="submit" loading={pending} className="w-full" size="lg">
           {pending ? "Logging in…" : "Log in"}
