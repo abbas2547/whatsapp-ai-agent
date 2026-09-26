@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { requireSessionOrRedirect } from "@/app/actions";
+import { requireSessionOrRedirect } from "@/app/actions/session";
 import { db } from "@/lib/db";
 import { PageHeader, EmptyState } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";

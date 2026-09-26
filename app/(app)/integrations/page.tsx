@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { requireSessionOrRedirect } from "@/app/actions";
+import { requireSessionOrRedirect } from "@/app/actions/session";
 import { db } from "@/lib/db";
 import { getWhatsAppStatus } from "@/services/whatsapp/connect";
 import { appUrl, env, isPlaceholder } from "@/lib/env";

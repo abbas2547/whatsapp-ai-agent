@@ -14,7 +14,7 @@ import {
   Plug,
   Rocket,
 } from "lucide-react";
-import { completeOnboardingAction } from "@/app/actions";
+import { completeOnboardingAction } from "@/app/actions/workspaces";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";

@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { requireSessionOrRedirect } from "@/app/actions";
+import { requireSessionOrRedirect } from "@/app/actions/session";
 import { listKnowledgeBases } from "@/services/knowledge/knowledge.service";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { EmptyState, PageHeader } from "@/components/ui/badge";

@@ -13,6 +13,9 @@ const nextConfig: NextConfig = {
   //   compiles faster in dev
   experimental: {
     turbopackFileSystemCacheForDev: true,
+    // Compile independent routes in parallel in `next dev` — big win on
+    // multi-core machines when many pages compile on first load.
+    parallelServerCompiles: true,
     optimizePackageImports: [
       "lucide-react",
       "@xyflow/react",

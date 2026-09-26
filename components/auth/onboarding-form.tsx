@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { toast } from "sonner";
 import { Building2 } from "lucide-react";
-import { createWorkspaceAction } from "@/app/actions";
+import { createWorkspaceAction } from "@/app/actions/workspaces";
 import { Button } from "@/components/ui/button";
 import { Input, Label, FieldError, FieldHint } from "@/components/ui/input";
 

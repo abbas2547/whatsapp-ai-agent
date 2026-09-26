@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { Suspense } from "react";
-import { requireSessionOrRedirect } from "@/app/actions";
+import { requireSessionOrRedirect } from "@/app/actions/session";
 import { countLeads, listLeads, LEADS_PAGE_SIZE } from "@/services/leads/lead.service";
 import { Card } from "@/components/ui/card";
 import { EmptyState, PageHeader } from "@/components/ui/badge";

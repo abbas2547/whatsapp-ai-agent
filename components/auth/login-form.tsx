@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useActionState } from "react";
 import { signIn } from "next-auth/react";
 import { CircleAlert, CircleCheck, Eye, EyeOff } from "lucide-react";
-import { loginAction } from "@/app/actions";
+import { loginAction } from "@/app/actions/auth";
 import { Button } from "@/components/ui/button";
 import { Input, Label, FieldError } from "@/components/ui/input";
 

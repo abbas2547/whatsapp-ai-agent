@@ -4,7 +4,7 @@ import { useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Pause, Play } from "lucide-react";
-import { setAgentStatusAction } from "@/app/actions";
+import { setAgentStatusAction } from "@/app/actions/agents";
 import { Button } from "@/components/ui/button";
 
 export function AgentPauseButton({

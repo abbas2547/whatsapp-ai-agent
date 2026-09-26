@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useActionState, useState } from "react";
 import { CircleAlert, CircleCheck, Eye, EyeOff } from "lucide-react";
-import { registerAction } from "@/app/actions";
+import { registerAction } from "@/app/actions/auth";
 import { Button } from "@/components/ui/button";
 import { Input, Label, FieldError } from "@/components/ui/input";
 import { cn } from "@/lib/utils";

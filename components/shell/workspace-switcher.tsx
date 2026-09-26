@@ -7,7 +7,7 @@ import { useSession } from "next-auth/react";
 import { toast } from "sonner";
 import { Bot, Check, ChevronDown, Plus, Settings2 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { createAdditionalWorkspaceAction, switchWorkspaceAction } from "@/app/actions";
+import { createAdditionalWorkspaceAction, switchWorkspaceAction } from "@/app/actions/workspaces";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 

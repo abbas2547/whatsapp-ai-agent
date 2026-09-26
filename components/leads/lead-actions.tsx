@@ -4,7 +4,7 @@ import { useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import type { LeadStatus } from "@prisma/client";
-import { updateLeadAction } from "@/app/actions";
+import { updateLeadAction } from "@/app/actions/crm";
 import { Select } from "@/components/ui/select";
 
 const STATUSES: LeadStatus[] = ["NEW", "CONTACTED", "QUALIFIED", "PROPOSAL", "WON", "LOST"];

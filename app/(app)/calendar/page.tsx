@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { requireSessionOrRedirect } from "@/app/actions";
+import { requireSessionOrRedirect } from "@/app/actions/session";
 import { listAppointments } from "@/services/calendar/google-calendar";
 import { Card } from "@/components/ui/card";
 import { EmptyState, PageHeader } from "@/components/ui/badge";

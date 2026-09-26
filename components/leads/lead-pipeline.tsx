@@ -4,7 +4,7 @@ import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import type { LeadStatus } from "@prisma/client";
-import { updateLeadAction } from "@/app/actions";
+import { updateLeadAction } from "@/app/actions/crm";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { LeadStatusBadge } from "@/components/status-badges";

@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { requireSessionOrRedirect } from "@/app/actions";
+import { requireSessionOrRedirect } from "@/app/actions/session";
 import { db } from "@/lib/db";
 import { getDashboardMetrics, getRecentMessageVolume, getDashboardExtras } from "@/services/analytics/analytics.service";
 import { getActiveSubscription, getUsageSummary, isPaidActive } from "@/services/billing/entitlements";

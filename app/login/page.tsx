@@ -6,6 +6,7 @@ import { safeNextPath } from "@/lib/utils";
 import { AuthShell } from "@/components/auth/auth-shell";
 import { LoginForm } from "@/components/auth/login-form";
 import { ConfigErrorCard } from "@/components/auth/config-error-card";
+import { ProdUrlWarning } from "@/components/auth/prod-url-warning";
 
 export const metadata: Metadata = { title: "Log in" };
 
@@ -45,6 +46,7 @@ export default async function LoginPage({
 
   return (
     <AuthShell title="Welcome back" subtitle="Log in to run your WhatsApp operation.">
+      <ProdUrlWarning />
       <LoginForm googleEnabled={googleEnabled} authError={authError} justCreated={justCreated} next={next} />
     </AuthShell>
   );

@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { notFound, redirect } from "next/navigation";
-import { requireSessionOrRedirect } from "@/app/actions";
+import { requireSessionOrRedirect } from "@/app/actions/session";
 import { db } from "@/lib/db";
 import { getAgent } from "@/services/ai/agent.service";
 import { listKnowledgeBases } from "@/services/knowledge/knowledge.service";

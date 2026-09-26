@@ -3,7 +3,7 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { addManualKnowledgeAction } from "@/app/actions";
+import { addManualKnowledgeAction } from "@/app/actions/knowledge";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Input, Label, Textarea } from "@/components/ui/input";

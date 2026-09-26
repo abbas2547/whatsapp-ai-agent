@@ -8,7 +8,7 @@ import {
   deleteKnowledgeDocumentAction,
   retryKnowledgeDocumentAction,
   previewKnowledgeDocumentAction,
-} from "@/app/actions";
+} from "@/app/actions/knowledge";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { DocumentStatusBadge } from "@/components/status-badges";

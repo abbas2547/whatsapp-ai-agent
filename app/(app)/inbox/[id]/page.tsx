@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Suspense } from "react";
-import { requireSessionOrRedirect } from "@/app/actions";
+import { requireSessionOrRedirect } from "@/app/actions/session";
 import { getConversation, markConversationRead } from "@/services/inbox/conversation.service";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";

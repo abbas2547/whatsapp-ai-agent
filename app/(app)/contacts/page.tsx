@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { Suspense } from "react";
-import { requireSessionOrRedirect } from "@/app/actions";
+import { requireSessionOrRedirect } from "@/app/actions/session";
 import { countContacts, listContacts, CONTACTS_PAGE_SIZE, type ContactSort } from "@/services/contacts/contact.service";
 import { db } from "@/lib/db";
 import { Card } from "@/components/ui/card";

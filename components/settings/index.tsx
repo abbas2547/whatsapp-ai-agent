@@ -4,7 +4,7 @@ import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import type { MemberRole } from "@prisma/client";
-import { saveQualificationAction, updateMemberRoleAction, updateOrgNameAction } from "@/app/actions";
+import { saveQualificationAction, updateMemberRoleAction, updateOrgNameAction } from "@/app/actions/settings";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";

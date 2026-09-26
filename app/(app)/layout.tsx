@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
-import { requireSessionOrRedirect } from "@/app/actions";
+import { requireSessionOrRedirect } from "@/app/actions/session";
 import { db } from "@/lib/db";
 import { listUserWorkspaces } from "@/services/organization/organization.service";
 import { getActiveSubscription, isPaidActive } from "@/services/billing/entitlements";

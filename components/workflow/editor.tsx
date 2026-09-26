@@ -23,7 +23,7 @@ import {
   type NodeTypes,
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
-import { saveWorkflowAction } from "@/app/actions";
+import { saveWorkflowAction } from "@/app/actions/automation";
 import { Button } from "@/components/ui/button";
 import { Input, Label, Textarea } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";

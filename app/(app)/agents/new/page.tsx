@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { requireSessionOrRedirect } from "@/app/actions";
+import { requireSessionOrRedirect } from "@/app/actions/session";
 import { db } from "@/lib/db";
 import { listKnowledgeBases } from "@/services/knowledge/knowledge.service";
 import { TOOL_DEFINITIONS } from "@/services/ai/tools/registry";

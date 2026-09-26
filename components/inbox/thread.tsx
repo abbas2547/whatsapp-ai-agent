@@ -9,7 +9,7 @@ import {
   returnToAiAction,
   sendInboxMessageAction,
   transferConversationAction,
-} from "@/app/actions";
+} from "@/app/actions/inbox";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Send, Bot, BotOff, UserPlus, CheckCircle2, Loader2 } from "lucide-react";

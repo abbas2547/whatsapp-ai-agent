@@ -31,7 +31,7 @@ import {
   Contact as ContactIcon,
   type LucideIcon,
 } from "lucide-react";
-import { saveAgentAction } from "@/app/actions";
+import { saveAgentAction } from "@/app/actions/agents";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -226,7 +226,7 @@ export function AgentBuilder({
 
   function publishById(id: string) {
     startTransition(async () => {
-      const { publishAgentAction } = await import("@/app/actions");
+      const { publishAgentAction } = await import("@/app/actions/agents");
       const result = await publishAgentAction(id);
       if (result.ok) {
         setValues((v) => ({ ...v, status: "ACTIVE" }));

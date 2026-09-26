@@ -5,6 +5,7 @@ import { safeNextPath } from "@/lib/utils";
 import { AuthShell } from "@/components/auth/auth-shell";
 import { RegisterForm } from "@/components/auth/register-form";
 import { ConfigErrorCard } from "@/components/auth/config-error-card";
+import { ProdUrlWarning } from "@/components/auth/prod-url-warning";
 
 export const metadata: Metadata = { title: "Create your workspace" };
 
@@ -37,6 +38,7 @@ export default async function RegisterPage({
       title="Create your workspace"
       subtitle="Your AI employees, inbox, leads and automations live here."
     >
+      <ProdUrlWarning />
       <RegisterForm next={next} />
     </AuthShell>
   );

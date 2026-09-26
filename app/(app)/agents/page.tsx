@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { requireSessionOrRedirect } from "@/app/actions";
+import { requireSessionOrRedirect } from "@/app/actions/session";
 import { listAgents } from "@/services/ai/agent.service";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
