@@ -135,7 +135,16 @@ export function LoginForm({
               >
                 Start again
               </Link>{" "}
-              from this page and complete Google sign-in in the same tab.
+              from this page and complete Google sign-in in the same tab. Still stuck?{" "}
+              <a
+                href="/api/auth/diagnostics"
+                target="_blank"
+                rel="noreferrer"
+                className="font-semibold text-primary hover:underline"
+              >
+                Open the connection check
+              </a>{" "}
+              and send what it shows to support.
             </p>
           </div>
         ) : null}
