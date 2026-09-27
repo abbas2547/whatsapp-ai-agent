@@ -8,11 +8,12 @@ import { Building2 } from "lucide-react";
 import { createWorkspaceAction } from "@/app/actions/workspaces";
 import { Button } from "@/components/ui/button";
 import { Input, Label, FieldError, FieldHint } from "@/components/ui/input";
+import { usePersistentState, removeStored } from "@/hooks/use-persistent-state";
 
 export function OnboardingForm({ userName }: { userName?: string | null }) {
   const router = useRouter();
   const { update } = useSession();
-  const [name, setName] = useState("");
+  const [name, setName] = usePersistentState<string>("onboarding:workspace-name", "");
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
 
@@ -25,6 +26,7 @@ export function OnboardingForm({ userName }: { userName?: string | null }) {
       if (result.ok) {
         // Refresh the JWT so it picks up the new membership, then enter.
         await update().catch(() => undefined);
+        removeStored("onboarding:workspace-name");
         toast.success("Workspace created");
         router.replace("/dashboard");
         router.refresh();

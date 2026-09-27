@@ -93,3 +93,33 @@ export async function fetchPhoneNumber(phoneNumberId: string, accessToken: strin
     quality_rating?: string;
   };
 }
+
+export type WabaPhone = {
+  id: string;
+  display_phone_number?: string;
+  verified_name?: string;
+  quality_rating?: string;
+};
+
+/**
+ * Lists phone numbers on a WhatsApp Business Account so callers only need the
+ * WABA id (Client ID) + access token (Client Secret) — no manual Phone ID.
+ */
+export async function fetchWabaPhoneNumbers(wabaId: string, accessToken: string): Promise<WabaPhone[]> {
+  const res = await fetch(
+    `${GRAPH}/${encodeURIComponent(wabaId)}/phone_numbers?fields=id,display_phone_number,verified_name,quality_rating&limit=25`,
+    { headers: { Authorization: `Bearer ${accessToken}` } },
+  );
+  const json = (await res.json()) as {
+    error?: { message?: string };
+    data?: WabaPhone[];
+  };
+  if (!res.ok) {
+    throw new AppError(
+      json.error?.message || "Couldn't find WhatsApp numbers for this Client ID. Check the ID and Secret, then try again.",
+      "WHATSAPP_WABA_LOOKUP",
+      502,
+    );
+  }
+  return json.data || [];
+}

@@ -3,12 +3,14 @@ import Link from "next/link";
 import { requireSessionOrRedirect } from "@/app/actions/session";
 import { getAnalytics } from "@/services/analytics/analytics.service";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
 import { Badge, PageHeader } from "@/components/ui/badge";
 import { StatCard } from "@/components/ui/stat";
 import { Activity, ArrowDown, ArrowUp, Bot, CalendarCheck2, Crosshair, Fingerprint, MessageSquare, Timer, Zap, TriangleAlert } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 export const metadata: Metadata = { title: "Analytics" };
+export const dynamic = "force-dynamic";
 
 const RANGES = [
   { value: 7, label: "7 days" },
@@ -32,7 +34,35 @@ export default async function AnalyticsPage({
   const sp = await searchParams;
   const raw = parseInt(typeof sp.range === "string" ? sp.range : "30", 10);
   const range = [7, 30, 90].includes(raw) ? raw : 30;
-  const a = await getAnalytics(session.user.organizationId!, range);
+
+  // Never let a data failure trip the app error boundary ("Something went
+  // wrong"). Render an inline, retryable state instead — data stays safe.
+  let a: Awaited<ReturnType<typeof getAnalytics>>;
+  try {
+    a = await getAnalytics(session.user.organizationId!, range);
+  } catch (error) {
+    console.error("[analytics] load failed:", error instanceof Error ? error.message : "unknown");
+    return (
+      <div className="mx-auto flex max-w-2xl flex-col gap-4">
+        <PageHeader title="Analytics" description={`Last ${range} days of activity in your workspace.`} />
+        <Card className="p-8 text-center">
+          <Activity className="mx-auto h-8 w-8 text-muted-foreground" />
+          <h1 className="mt-3 text-xl font-semibold tracking-tight">We couldn&apos;t load analytics</h1>
+          <p className="mx-auto mt-1 max-w-md text-sm leading-6 text-muted-foreground">
+            Your data is safe — this is usually a temporary connection issue. Please try again.
+          </p>
+          <div className="mt-5 flex justify-center gap-2">
+            <Button asChild>
+              <Link href={`/analytics?range=${range}`}>Try again</Link>
+            </Button>
+            <Button asChild variant="outline">
+              <Link href="/dashboard">Go to dashboard</Link>
+            </Button>
+          </div>
+        </Card>
+      </div>
+    );
+  }
 
   if (a.insufficient) {
     return (

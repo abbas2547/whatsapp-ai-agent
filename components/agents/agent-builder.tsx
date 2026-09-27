@@ -33,6 +33,7 @@ import {
 } from "lucide-react";
 import { saveAgentAction } from "@/app/actions/agents";
 import { Button } from "@/components/ui/button";
+import { usePersistentState, removeStored } from "@/hooks/use-persistent-state";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Input, Label, Textarea } from "@/components/ui/input";
@@ -40,6 +41,7 @@ import { Select } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { AgentStatusBadge } from "@/components/status-badges";
+import { AgentDeleteButton } from "@/components/agents/agent-delete-button";
 import { AgentTester } from "@/components/agents/agent-tester";
 import { AGENT_GOALS } from "./goals";
 import { cn } from "@/lib/utils";
@@ -131,12 +133,30 @@ export function AgentBuilder({
 }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
-  const [step, setStep] = useState(0);
+  // Draft persistence: refresh / step navigation / back-forward never loses
+  // typed content. Keyed per agent (or "new"), stored in localStorage.
+  const draftKey = `agent-draft:${agent?.id || "new"}`;
+  const [step, setStep] = usePersistentState<number>(`${draftKey}:step`, 0);
   const [publishOpen, setPublishOpen] = useState(false);
-  const [dirty, setDirty] = useState(false);
+  // If a draft was restored from a previous visit, surface it as unsaved work.
+  const [dirty, setDirty] = useState(() => {
+    if (agent?.id || typeof window === "undefined") return false;
+    try {
+      const raw = window.localStorage.getItem("agent-draft:new:values");
+      if (!raw) return false;
+      const d = JSON.parse(raw) as Partial<AgentEditorValue>;
+      return !!(
+        (typeof d.name === "string" && d.name.trim()) ||
+        (typeof d.businessDescription === "string" && d.businessDescription.trim()) ||
+        (typeof d.systemInstructions === "string" && d.systemInstructions.trim())
+      );
+    } catch {
+      return false;
+    }
+  });
   const [savedAt, setSavedAt] = useState<Date | null>(null);
   const [saveError, setSaveError] = useState<{ message: string; upgradePlan?: "starter" | "pro" | "business" } | null>(null);
-  const [values, setValues] = useState<AgentEditorValue>({
+  const [values, setValuesInner] = usePersistentState<AgentEditorValue>(`${draftKey}:values`, {
     id: agent?.id,
     name: agent?.name || "",
     avatar: agent?.avatar ?? "",
@@ -156,6 +176,10 @@ export function AgentBuilder({
     enabledTools: agent?.enabledTools ?? [],
     knowledgeBaseIds: agent?.knowledgeBaseIds ?? [],
   });
+
+  function setValues(updater: AgentEditorValue | ((v: AgentEditorValue) => AgentEditorValue)) {
+    setValuesInner(updater);
+  }
 
   function set(key: keyof AgentEditorValue, value: unknown) {
     setValues((v) => ({ ...v, [key]: value }));
@@ -196,13 +220,20 @@ export function AgentBuilder({
 
   function save(onDone?: (id: string) => void) {
     startTransition(async () => {
+      const wasNew = !values.id;
       const result = await saveAgentAction(values.id, payload());
       if (result.ok) {
         setDirty(false);
         setSavedAt(new Date());
         setValues((v) => ({ ...v, id: result.agent.id }));
-        toast.success(values.id ? "Draft saved" : "Agent created");
-        if (!values.id) router.replace(`/agents/${result.agent.id}`);
+        toast.success(wasNew ? "Agent created" : "Draft saved");
+        if (wasNew) {
+          // Fresh agent now has its own draft key — drop the shared "new"
+          // draft so the next "New agent" starts blank, not with old text.
+          removeStored("agent-draft:new:values");
+          removeStored("agent-draft:new:step");
+          router.replace(`/agents/${result.agent.id}`);
+        }
         router.refresh();
         onDone?.(result.agent.id);
       } else {
@@ -290,6 +321,9 @@ export function AgentBuilder({
         <Button variant="outline" onClick={() => save()} loading={pending} disabled={pending || values.name.trim().length < 2}>
           Save draft
         </Button>
+        {values.id ? (
+          <AgentDeleteButton agentId={values.id} agentName={values.name || "this agent"} redirectTo="/agents" />
+        ) : null}
       </div>
 
       {/* Mobile step progress */}

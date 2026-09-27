@@ -4,22 +4,52 @@ import { encryptSecret } from "@/lib/encryption";
 import { env } from "@/lib/env";
 import { AppError, LimitError } from "@/lib/errors";
 import { canConnectWhatsAppNumber } from "@/services/billing/entitlements";
-import { fetchPhoneNumber, resolveAccessToken, sendWhatsAppMessage } from "@/services/whatsapp/client";
+import { fetchPhoneNumber, fetchWabaPhoneNumbers, resolveAccessToken, sendWhatsAppMessage } from "@/services/whatsapp/client";
 import { writeAuditLog } from "@/services/audit/audit.service";
 
+// Simplified (n8n-style) credentials: only Client ID + Client Secret.
+// Client ID = WABA ID, Client Secret = permanent access token. The phone
+// number is auto-discovered from the WABA so users never type IDs manually.
+// Legacy callers may still pass wabaId/phoneNumberId/accessToken explicitly.
 const connectSchema = z.object({
-  wabaId: z.string().min(1),
-  phoneNumberId: z.string().min(1),
-  accessToken: z.string().min(10),
+  wabaId: z.string().min(1).optional(),
+  phoneNumberId: z.string().min(1).optional(),
+  accessToken: z.string().min(10).optional(),
   displayPhoneNumber: z.string().optional(),
-});
+  clientId: z.string().min(1, "Client ID is required").optional(),
+  clientSecret: z.string().min(10, "Client Secret is required").optional(),
+}).refine(
+  (v) => (v.wabaId || v.clientId) && (v.accessToken || v.clientSecret),
+  { message: "Enter your Client ID and Client Secret to connect." },
+);
 
 export async function connectWhatsApp(organizationId: string, userId: string, input: z.infer<typeof connectSchema>) {
   const parsed = connectSchema.parse(input);
+  const wabaId = (parsed.wabaId || parsed.clientId || "").trim();
+  const accessToken = (parsed.accessToken || parsed.clientSecret || "").trim();
+  let phoneNumberId = (parsed.phoneNumberId || "").trim();
+  if (!wabaId || accessToken.length < 10) {
+    throw new AppError("Enter your Client ID and Client Secret to connect.", "INVALID_INPUT", 400);
+  }
+  // No phone id supplied (simplified form): pick the first number on the WABA.
+  let discovered: { display_phone_number?: string; verified_name?: string; quality_rating?: string } | null = null;
+  if (!phoneNumberId) {
+    const numbers = await fetchWabaPhoneNumbers(wabaId, accessToken);
+    const first = numbers[0];
+    if (!first) {
+      throw new AppError(
+        "No WhatsApp phone numbers found on this account. Add a phone number to your WhatsApp Business Account in Meta, then try again.",
+        "WHATSAPP_NO_NUMBERS",
+        404,
+      );
+    }
+    phoneNumberId = first.id;
+    discovered = first;
+  }
   // A phoneNumberId already owned by ANOTHER workspace must never be
   // reassigned by upsert — reject the takeover attempt.
   const existingNumber = await db.whatsAppPhoneNumber.findUnique({
-    where: { phoneNumberId: parsed.phoneNumberId },
+    where: { phoneNumberId },
     select: { organizationId: true },
   });
   if (existingNumber && existingNumber.organizationId !== organizationId) {
@@ -36,11 +66,11 @@ export async function connectWhatsApp(organizationId: string, userId: string, in
       );
     }
   }
-  const encrypted = encryptSecret(parsed.accessToken);
-  const lookup = await fetchPhoneNumber(parsed.phoneNumberId, parsed.accessToken);
+  const encrypted = encryptSecret(accessToken);
+  const lookup = discovered || (await fetchPhoneNumber(phoneNumberId, accessToken));
 
   const account = await db.whatsAppAccount.upsert({
-    where: { organizationId_wabaId: { organizationId, wabaId: parsed.wabaId } },
+    where: { organizationId_wabaId: { organizationId, wabaId } },
     update: {
       accessTokenEncrypted: encrypted,
       status: "connected",
@@ -48,7 +78,7 @@ export async function connectWhatsApp(organizationId: string, userId: string, in
     },
     create: {
       organizationId,
-      wabaId: parsed.wabaId,
+      wabaId,
       accessTokenEncrypted: encrypted,
       status: "connected",
       metaAppId: env().META_APP_ID,
@@ -56,11 +86,11 @@ export async function connectWhatsApp(organizationId: string, userId: string, in
   });
 
   const phone = await db.whatsAppPhoneNumber.upsert({
-    where: { phoneNumberId: parsed.phoneNumberId },
+    where: { phoneNumberId },
     update: {
       organizationId,
       whatsappAccountId: account.id,
-      displayPhoneNumber: lookup.display_phone_number || parsed.displayPhoneNumber || parsed.phoneNumberId,
+      displayPhoneNumber: lookup.display_phone_number || parsed.displayPhoneNumber || phoneNumberId,
       verifiedName: lookup.verified_name,
       qualityRating: lookup.quality_rating,
       isDefault: true,
@@ -68,8 +98,8 @@ export async function connectWhatsApp(organizationId: string, userId: string, in
     create: {
       organizationId,
       whatsappAccountId: account.id,
-      phoneNumberId: parsed.phoneNumberId,
-      displayPhoneNumber: lookup.display_phone_number || parsed.displayPhoneNumber || parsed.phoneNumberId,
+      phoneNumberId,
+      displayPhoneNumber: lookup.display_phone_number || parsed.displayPhoneNumber || phoneNumberId,
       verifiedName: lookup.verified_name,
       qualityRating: lookup.quality_rating,
       isDefault: true,

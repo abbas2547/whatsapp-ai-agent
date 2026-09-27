@@ -24,6 +24,11 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           Google({
             clientId: env().GOOGLE_CLIENT_ID!,
             clientSecret: env().GOOGLE_CLIENT_SECRET!,
+            // Allow one account to sign in with BOTH password and Google when
+            // the email address matches. Google verifies email ownership, so
+            // auto-linking the OAuth Account to the existing User row is safe
+            // and fixes "OAuthAccountNotLinked" for password-registered users.
+            allowDangerousEmailAccountLinking: true,
           }),
         ]
       : []),
@@ -51,6 +56,31 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     }),
   ],
   callbacks: {
+    async signIn({ user, account, profile }) {
+      // Auto-verify the email for OAuth logins (Google verifies ownership).
+      // This lets a password-registered user also use Google with the same
+      // email, and vice versa, without hitting OAuthAccountNotLinked.
+      try {
+        const email = (user?.email || (profile as { email?: string } | null)?.email || "")
+          .toLowerCase()
+          .trim();
+        if (email && account?.provider === "google" && user?.id) {
+          const existing = await db.user.findUnique({
+            where: { email },
+            select: { id: true, emailVerified: true },
+          });
+          if (existing && !existing.emailVerified) {
+            await db.user.update({
+              where: { id: existing.id },
+              data: { emailVerified: new Date() },
+            });
+          }
+        }
+      } catch {
+        // Never block sign-in on a bookkeeping update.
+      }
+      return true;
+    },
     async jwt({ token, user, trigger, session }) {
       if (user?.id) token.sub = user.id;
       if (trigger === "update" && (session as { organizationId?: string } | null)?.organizationId) {

@@ -147,8 +147,14 @@ export async function processAgentTurn(input: {
     await recordUsage(input.organizationId, "ai.tokens", (result.usage?.inputTokens || 0) + (result.usage?.outputTokens || 0));
 
     let loops = 0;
+    let lastSignature = "";
     while (result.toolCalls.length && loops < 4) {
       loops += 1;
+      // The model is stuck repeating the same call — stop looping and force a
+      // text reply below instead of burning 4 slow round-trips.
+      const signature = JSON.stringify(result.toolCalls.map((c) => [c.name, c.arguments]));
+      if (signature === lastSignature) break;
+      lastSignature = signature;
       for (const call of result.toolCalls) {
         const execution = await executeAuthorizedTool(
           {
@@ -172,6 +178,17 @@ export async function processAgentTurn(input: {
         });
       }
       result = await provider.generate({ messages, tools: toolSpecs });
+    }
+
+    // Tools ran but the model never produced text (function-call-only
+    // replies): ask once more WITHOUT tools so it must answer in words.
+    if (!result.text && toolCalls.length) {
+      try {
+        const closing = await provider.generate({ messages, tools: [] });
+        if (closing.text) result = closing;
+      } catch (error) {
+        console.error("[agent] closing reply failed:", error instanceof Error ? error.message : "unknown");
+      }
     }
 
     const reply =

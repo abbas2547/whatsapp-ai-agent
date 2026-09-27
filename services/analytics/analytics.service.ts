@@ -100,6 +100,23 @@ export async function getDashboardExtras(organizationId: string) {
 export async function getAnalytics(organizationId: string, days = 30) {
   const range = [7, 30, 90].includes(days) ? days : 30;
   const since = new Date(Date.now() - range * 24 * 60 * 60 * 1000);
+  // `takeoverReason` may be missing on databases that haven't run the latest
+  // migration — degrade to 0 instead of crashing the whole page.
+  const handoffsPromise = db.conversation
+    .count({ where: { organizationId, takeoverReason: { not: null } } })
+    .catch((error) => {
+      console.error("[analytics] handoffs query failed, defaulting to 0:", error instanceof Error ? error.message : "unknown");
+      return 0;
+    });
+  const aiUsagePromise = db.usageEvent
+    .aggregate({
+      where: { organizationId, type: "ai.tokens", createdAt: { gte: since } },
+      _sum: { quantity: true },
+    })
+    .catch((error) => {
+      console.error("[analytics] usage query failed, defaulting to 0:", error instanceof Error ? error.message : "unknown");
+      return { _sum: { quantity: 0 } };
+    });
   const [
     received,
     sent,
@@ -120,16 +137,13 @@ export async function getAnalytics(organizationId: string, days = 30) {
     db.conversation.count({ where: { organizationId } }),
     db.conversation.count({ where: { organizationId, status: "AI_ACTIVE" } }),
     db.conversation.count({ where: { organizationId, status: { in: ["HUMAN_ACTIVE", "WAITING_FOR_HUMAN"] } } }),
-    db.conversation.count({ where: { organizationId, takeoverReason: { not: null } } }),
+    handoffsPromise,
     db.lead.count({ where: { organizationId, createdAt: { gte: since } } }),
     db.lead.count({ where: { organizationId, status: "QUALIFIED" } }),
     db.appointment.count({ where: { organizationId } }),
     db.workflowExecution.count({ where: { organizationId, startedAt: { gte: since } } }),
     db.workflowExecution.count({ where: { organizationId, status: "FAILED", startedAt: { gte: since } } }),
-    db.usageEvent.aggregate({
-      where: { organizationId, type: "ai.tokens", createdAt: { gte: since } },
-      _sum: { quantity: true },
-    }),
+    aiUsagePromise,
     db.message.findMany({
       where: { organizationId, createdAt: { gte: since } },
       select: { conversationId: true, senderType: true, createdAt: true },
@@ -171,6 +185,6 @@ export async function getAnalytics(organizationId: string, days = 30) {
     avgResponseMs,
     workflowExecutions,
     workflowFailures,
-    aiUsage: aiUsage._sum.quantity || 0,
+    aiUsage: aiUsage._sum.quantity ?? 0,
   };
 }

@@ -49,6 +49,12 @@ function prismaCode(error: unknown): string | undefined {
 
 export function publicErrorMessage(error: unknown) {
   if (error instanceof AppError) return error.message;
+  // Supabase transaction pooler without ?pgbouncer=true: prepared statements
+  // collide on reused pooled connections ("prepared statement sN already
+  // exists"). The statement name is random server-side, safe to match on.
+  if (error instanceof Error && /prepared statement .* already exists/i.test(error.message)) {
+    return "Database pooler misconfigured: add ?pgbouncer=true to DATABASE_URL (required for the Supabase transaction pooler).";
+  }
   // Zod validation errors: surface the first human-readable issue (safe —
   // messages come from our own schemas, never from user input).
   if (typeof error === "object" && error !== null && (error as { name?: unknown }).name === "ZodError") {

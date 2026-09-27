@@ -29,12 +29,62 @@ export async function registerWorkspace(input: {
   organizationName: string;
 }) {
   const email = input.email.toLowerCase().trim();
-  const existing = await db.user.findUnique({ where: { email } });
-  if (existing) throw new AppError("An account with this email already exists", "EMAIL_TAKEN", 409);
-
   if (!input.password || input.password.length < 8 || input.password.length > 72) {
     throw new AppError("Password must be between 8 and 72 characters", "INVALID_PASSWORD", 400);
   }
+  const existing = await db.user.findUnique({ where: { email } });
+  // Reverse direction of dual login: a Google-created account (no password
+  // yet) can add a password with the same email instead of being blocked.
+  // The same email then works with BOTH Google and password login.
+  if (existing && !existing.passwordHash) {
+    const passwordHash = await bcrypt.hash(input.password, 12);
+    const hasMembership = await db.organizationMember.findFirst({
+      where: { userId: existing.id },
+      select: { organizationId: true },
+    });
+    const updatedUser = await db.user.update({
+      where: { id: existing.id },
+      data: {
+        passwordHash,
+        name: existing.name || input.name,
+      },
+    });
+    if (hasMembership) {
+      return {
+        user: updatedUser,
+        organization: await db.organization.findUniqueOrThrow({
+          where: { id: hasMembership.organizationId },
+        }),
+      };
+    }
+    const slug = await uniqueSlug(slugify(input.organizationName) || "workspace");
+    const result = await db.$transaction(async (tx) => {
+      const organization = await tx.organization.create({
+        data: { name: input.organizationName, slug },
+      });
+      await tx.organizationMember.create({
+        data: {
+          userId: existing.id,
+          organizationId: organization.id,
+          role: MemberRole.OWNER,
+        },
+      });
+      await tx.qualificationField.createMany({
+        data: DEFAULT_QUALIFICATION_FIELDS.map((f) => ({ ...f, organizationId: organization.id })),
+      });
+      return { user: updatedUser, organization };
+    });
+    await writeAuditLog({
+      organizationId: result.organization.id,
+      userId: result.user.id,
+      action: "workspace.created",
+      entityType: "organization",
+      entityId: result.organization.id,
+    });
+    return result;
+  }
+  if (existing) throw new AppError("An account with this email already exists", "EMAIL_TAKEN", 409);
+
   const passwordHash = await bcrypt.hash(input.password, 12);
   const slug = await uniqueSlug(slugify(input.organizationName) || "workspace");
 

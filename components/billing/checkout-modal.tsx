@@ -47,9 +47,13 @@ export function CheckoutModal({
 
   async function startCheckout() {
     if (!plan || creating) return;
-    const digits = phone.replace(/[^\d]/g, "");
-    if (digits.length < 10 || digits.length > 15) {
-      setError("Enter a valid phone number for the payment receipt (10–15 digits).");
+    // Match server/Cashfree validation: 10-digit Indian mobile number.
+    // Accept "+91…", "91…" or "0…" prefixes users commonly type.
+    let digits = phone.replace(/[^\d]/g, "");
+    if (digits.length === 12 && digits.startsWith("91")) digits = digits.slice(2);
+    else if (digits.length === 11 && digits.startsWith("0")) digits = digits.slice(1);
+    if (!/^[6-9]\d{9}$/.test(digits)) {
+      setError("Enter a valid 10-digit Indian mobile number for the payment receipt.");
       return;
     }
     setCreating(true);
@@ -127,7 +131,7 @@ export function CheckoutModal({
                 placeholder="98765 43210"
                 value={phone}
                 onChange={(e) => setPhone(e.target.value)}
-                maxLength={15}
+                maxLength={16}
               />
             </div>
 

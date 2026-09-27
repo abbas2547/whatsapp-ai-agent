@@ -203,6 +203,31 @@ export async function publishAgent(organizationId: string, userId: string, id: s
   return getAgent(organizationId, id);
 }
 
+export async function deleteAgent(organizationId: string, userId: string, id: string) {
+  const agent = await getAgent(organizationId, id);
+  await db.$transaction(async (tx) => {
+    // Detach from conversations first (FK has no cascade). Conversations,
+    // messages, leads and appointments are kept — only the agent is removed.
+    await tx.conversation.updateMany({
+      where: { organizationId, activeAgentId: id },
+      data: { activeAgentId: null },
+    });
+    await tx.agentTool.deleteMany({ where: { agentId: id } });
+    await tx.agentKnowledgeBase.deleteMany({ where: { agentId: id } });
+    await tx.agentTestSession.deleteMany({ where: { agentId: id } });
+    await tx.agent.delete({ where: { id } });
+  });
+  await writeAuditLog({
+    organizationId,
+    userId,
+    action: "agent.deleted",
+    entityType: "agent",
+    entityId: id,
+    metadata: { name: agent.name },
+  });
+  return { deleted: true as const };
+}
+
 export function buildAgentSystemPrompt(agent: {
   name: string;
   businessDescription?: string | null;

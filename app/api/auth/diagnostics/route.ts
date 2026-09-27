@@ -88,8 +88,55 @@ export async function GET(request: Request) {
     google = { reachable: false, error: "Cannot reach Google from this server (blocked outbound network)." };
   }
 
+  // --- Deep checks: replay the exact query shapes the onboarding and
+  // dashboard pages run (?deep=1). Read-only. Each result names the query,
+  // whether it passed, and the sanitized Prisma error code when it failed
+  // (e.g. P2024 pool timeout, prepared-statement errors on a misconfigured
+  // pooler). No row contents are ever returned.
+  let deep: Array<{ query: string; ok: boolean; latencyMs?: number; code?: string; error?: string }> | null = null;
+  if (new URL(request.url).searchParams.get("deep") === "1" && !envError && databaseUrlSet) {
+    const withTimeout = <T,>(p: Promise<T>): Promise<T> =>
+      new Promise<T>((resolve, reject) => {
+        const t = setTimeout(() => reject(new Error("timeout")), 10000);
+        p.then(
+          (v) => { clearTimeout(t); resolve(v); },
+          (e) => { clearTimeout(t); reject(e); },
+        );
+      });
+    const safeQuery = async (name: string, fn: () => Promise<unknown>) => {
+      const started = Date.now();
+      try {
+        await withTimeout(fn());
+        return { query: name, ok: true as const, latencyMs: Date.now() - started };
+      } catch (error) {
+        const code =
+          typeof error === "object" && error !== null
+            ? String((error as Record<string, unknown>).code || "")
+            : "";
+        return {
+          query: name,
+          ok: false as const,
+          code: code || undefined,
+          error:
+            error instanceof Error && error.message === "timeout"
+              ? "Timed out after 10s."
+              : publicErrorMessage(error),
+        };
+      }
+    };
+    const results = await Promise.all([
+      safeQuery("memberFind", () => db.organizationMember.findMany({ take: 1 })),
+      safeQuery("orgFind", () => db.organization.findFirst()),
+      safeQuery("phoneFind", () => db.whatsAppPhoneNumber.findMany({ take: 1 })),
+      safeQuery("agentGroupBy", () => db.agent.groupBy({ by: ["status"], _count: { status: true } })),
+      safeQuery("docCount", () => db.knowledgeDocument.count()),
+      safeQuery("interactiveTx", () => db.$transaction(async (tx) => { await tx.organization.count(); })),
+    ]);
+    deep = results;
+  }
+
   return NextResponse.json({
-    ok: !envError && database.reachable && google.reachable,
+    ok: !envError && database.reachable && google.reachable && (!deep || deep.every((d) => d.ok)),
     checkedAt: new Date().toISOString(),
     host: {
       request: requestHost || null,
@@ -108,5 +155,6 @@ export async function GET(request: Request) {
     },
     database,
     google,
+    deep,
   });
 }

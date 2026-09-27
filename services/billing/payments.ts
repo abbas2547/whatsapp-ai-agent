@@ -19,6 +19,7 @@ import {
   getCashfreeOrderPayments,
   isSuccessfulPaymentStatus,
   isFailedPaymentStatus,
+  normalizeCustomerPhone,
   type CashfreeConfig,
 } from "@/services/billing/cashfree";
 
@@ -81,63 +82,26 @@ export async function createBillingOrder(input: {
   if (!plan || plan.id === "free") throw new AppError("Please choose a valid paid plan.", "INVALID_PLAN", 400);
   if (!isBillingInterval(input.interval)) throw new AppError("Please choose monthly or annual billing.", "INVALID_INTERVAL", 400);
   const interval = input.interval;
-  const phone = input.customerPhone.replace(/[^\d]/g, "");
-  if (phone.length < 10 || phone.length > 15) {
-    throw new AppError("Please enter a valid phone number for the payment receipt.", "INVALID_PHONE", 400);
+  // Cashfree INR orders require a 10-digit Indian mobile number — normalize
+  // "+91…"/"91…"/"0…" prefixes here so provider validation never fails.
+  let phone: string;
+  try {
+    phone = normalizeCustomerPhone(input.customerPhone);
+  } catch (e) {
+    throw new AppError(
+      e instanceof Error ? e.message : "Please enter a valid phone number for the payment receipt.",
+      "INVALID_PHONE",
+      400,
+    );
   }
 
   // Server-side price authority — client amount is never accepted.
   const amountPaise = planPricePaise(plan, interval);
 
-  // Duplicate-click protection: reuse a fresh PENDING payment for the same
-  // plan/interval created in the last 15 minutes instead of a new order.
-  const recentPending = await db.payment.findFirst({
-    where: {
-      organizationId: input.organizationId,
-      planId: plan.id,
-      billingInterval: interval,
-      status: "PENDING",
-      createdAt: { gte: new Date(Date.now() - 15 * 60 * 1000) },
-    },
-    orderBy: { createdAt: "desc" },
-  });
-  if (recentPending) {
-    const existing = await getCashfreeOrder(cfg, recentPending.providerOrderId).catch(() => null);
-    if (existing && existing.status !== "EXPIRED") {
-      // Re-issue a session for the live order instead of duplicating.
-      const recreated = await createCashfreeOrder(cfg, {
-        orderId: recentPending.providerOrderId,
-        amountRupees: paiseToRupees(amountPaise),
-        currency: "INR",
-        customerId: input.organizationId,
-        customerEmail: input.userEmail,
-        customerPhone: phone,
-        returnUrl: `${appUrl()}/billing/success`,
-        notifyUrl: `${appUrl()}/api/webhooks/cashfree`,
-      }).catch(() => null);
-      if (recreated) {
-        await writeAuditLog({
-          organizationId: input.organizationId,
-          userId: input.userId,
-          action: "CHECKOUT_STARTED",
-          entityType: "payment",
-          entityId: recentPending.id,
-          metadata: { provider: PROVIDER, reference: recentPending.reference, reused: true },
-        });
-        return {
-          configured: true,
-          reference: recentPending.reference,
-          orderId: recentPending.providerOrderId,
-          paymentSessionId: recreated.paymentSessionId,
-          amountPaise,
-          currency: "INR",
-          environment: cfg.env,
-          planId: plan.id,
-          interval,
-        };
-      }
-    }
-  }
+  // Every checkout creates a FRESH order with a unique reference. Re-POSTing
+  // an existing order_id to Cashfree is rejected by the provider ("order
+  // already exists"), so stale PENDING rows are simply left to expire —
+  // only a verified SUCCESS ever activates a subscription.
 
   const reference = newPaymentReference();
   // Cashfree order_id doubles as our reference: safe charset, unique, joinable.
@@ -177,6 +141,19 @@ export async function createBillingOrder(input: {
     notifyUrl: `${appUrl()}/api/webhooks/cashfree`,
   }).catch(async (e: unknown) => {
     await db.payment.update({ where: { id: payment.id }, data: { status: "FAILED" } }).catch(() => undefined);
+    // Keep the provider's reason in the audit trail for support diagnosis.
+    await writeAuditLog({
+      organizationId: input.organizationId,
+      userId: input.userId,
+      action: "CHECKOUT_FAILED",
+      entityType: "payment",
+      entityId: payment.id,
+      metadata: {
+        provider: PROVIDER,
+        reference,
+        reason: e instanceof Error ? e.message.slice(0, 300) : "unknown",
+      },
+    }).catch(() => undefined);
     throw e;
   });
 

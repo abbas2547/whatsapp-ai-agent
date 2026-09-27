@@ -7,6 +7,8 @@ import { Button } from "@/components/ui/button";
 import { EmptyState, PageHeader } from "@/components/ui/badge";
 import { AgentStatusBadge } from "@/components/status-badges";
 import { AgentPauseButton } from "@/components/agents/agent-pause-button";
+import { AgentDeleteButton } from "@/components/agents/agent-delete-button";
+import { AgentFromWebsite } from "@/components/agents/agent-from-website";
 import { fmtDate } from "@/components/format";
 import { Bot, Plus, ArrowRight, Sparkles } from "lucide-react";
 import type { AgentGoal } from "@prisma/client";
@@ -38,6 +40,8 @@ export default async function AgentsPage() {
           </Button>
         }
       />
+
+      <AgentFromWebsite />
 
       {agents.length ? (
         <div className="grid gap-3 sm:grid-cols-2">
@@ -71,7 +75,10 @@ export default async function AgentsPage() {
                   <Link href={`/agents/${agent.id}`} prefetch className="inline-flex items-center gap-1 text-xs font-semibold text-primary hover:underline">
                     Open builder <ArrowRight className="h-3.5 w-3.5" />
                   </Link>
-                  <AgentPauseButton agentId={agent.id} status={agent.status} />
+                  <div className="flex items-center gap-1.5">
+                    <AgentPauseButton agentId={agent.id} status={agent.status} />
+                    <AgentDeleteButton agentId={agent.id} agentName={agent.name} iconOnly />
+                  </div>
                 </div>
               </Card>
             );

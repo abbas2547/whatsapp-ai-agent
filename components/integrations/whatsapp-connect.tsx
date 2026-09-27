@@ -4,7 +4,7 @@ import { useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { ArrowRight } from "lucide-react";
+import { ArrowRight, Eye, EyeOff } from "lucide-react";
 import { connectWhatsAppAction } from "@/app/actions/whatsapp";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -25,10 +25,9 @@ export function WhatsAppConnectCard({
   webhookUrl: string;
 }) {
   const router = useRouter();
-  const [waba, setWaba] = useState(wabaId || "");
-  const [phoneNumberId, setPhoneNumberId] = useState("");
-  const [token, setToken] = useState("");
-  const [displayPhone, setDisplayPhone] = useState("");
+  const [clientId, setClientId] = useState(wabaId || "");
+  const [clientSecret, setClientSecret] = useState("");
+  const [showSecret, setShowSecret] = useState(false);
   const [pending, startTransition] = useTransition();
   const [failure, setFailure] = useState<{ message: string; upgradePlan?: "starter" | "pro" | "business" } | null>(null);
 
@@ -36,14 +35,12 @@ export function WhatsAppConnectCard({
     startTransition(async () => {
       setFailure(null);
       const result = await connectWhatsAppAction({
-        wabaId: waba.trim(),
-        phoneNumberId: phoneNumberId.trim(),
-        accessToken: token.trim(),
-        displayPhoneNumber: displayPhone.trim() || undefined,
+        clientId: clientId.trim(),
+        clientSecret: clientSecret.trim(),
       });
       if (result.ok) {
         toast.success("WhatsApp connected");
-        setToken("");
+        setClientSecret("");
         router.refresh();
       } else {
         setFailure({
@@ -84,34 +81,58 @@ export function WhatsAppConnectCard({
         ) : (
           <>
             <p className="text-sm text-muted-foreground">
-              Connect a Meta WhatsApp Business Account so your AI agents can reply to customers. Grab these values from
-              your Meta Developer app.
+              Connect your Meta WhatsApp Business Account so your AI agents can reply to customers.
             </p>
-            <div className="grid gap-3 sm:grid-cols-2">
-              <div className="flex flex-col gap-1.5">
-                <Label>WABA ID</Label>
-                <Input value={waba} onChange={(e) => setWaba(e.target.value)} placeholder="100000000000000" required />
-              </div>
-              <div className="flex flex-col gap-1.5">
-                <Label>Phone number ID</Label>
-                <Input value={phoneNumberId} onChange={(e) => setPhoneNumberId(e.target.value)} placeholder="100000000000000" required />
-              </div>
-            </div>
             <div className="flex flex-col gap-1.5">
-              <Label>Permanent access token</Label>
+              <Label htmlFor="wa-client-id">
+                Client ID <span className="text-red-500">*</span>
+              </Label>
               <Input
-                type="password"
-                value={token}
-                onChange={(e) => setToken(e.target.value)}
-                placeholder="EAAG…"
+                id="wa-client-id"
+                value={clientId}
+                onChange={(e) => setClientId(e.target.value)}
+                placeholder="Your WhatsApp Business Account ID"
+                autoComplete="off"
                 required
               />
             </div>
             <div className="flex flex-col gap-1.5">
-              <Label>Display phone number (optional)</Label>
-              <Input value={displayPhone} onChange={(e) => setDisplayPhone(e.target.value)} placeholder="+1 555 000 1234" />
+              <Label htmlFor="wa-client-secret">
+                Client Secret <span className="text-red-500">*</span>
+              </Label>
+              <div className="relative">
+                <Input
+                  id="wa-client-secret"
+                  type={showSecret ? "text" : "password"}
+                  value={clientSecret}
+                  onChange={(e) => setClientSecret(e.target.value)}
+                  placeholder="Your permanent access token"
+                  autoComplete="off"
+                  className="pr-11"
+                  required
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowSecret((v) => !v)}
+                  aria-label={showSecret ? "Hide client secret" : "Show client secret"}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground transition-colors hover:text-foreground"
+                >
+                  {showSecret ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                </button>
+              </div>
             </div>
-            <Button onClick={connect} disabled={pending || !waba.trim() || !phoneNumberId.trim() || token.trim().length < 10}>
+            <p className="text-xs leading-5 text-muted-foreground">
+              Enterprise plan users can pull in credentials from external vaults.{" "}
+              <a
+                href="https://developers.facebook.com/docs/whatsapp/cloud-api/get-started"
+                target="_blank"
+                rel="noreferrer"
+                className="font-medium text-primary hover:underline"
+              >
+                More info
+              </a>
+            </p>
+            <Button onClick={connect} disabled={pending || !clientId.trim() || clientSecret.trim().length < 10}>
               {pending ? "Connecting…" : "Connect WhatsApp"}
             </Button>
             {failure ? (

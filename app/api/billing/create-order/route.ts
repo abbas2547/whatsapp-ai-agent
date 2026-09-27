@@ -13,6 +13,9 @@ const bodySchema = z.object({
 
 function statusFor(error: unknown): number {
   if (error instanceof AppError) return error.status;
+  // CashfreeError and similar provider errors carry their own HTTP status.
+  const status = (error as { status?: unknown } | null)?.status;
+  if (typeof status === "number" && Number.isInteger(status) && status >= 400 && status < 600) return status;
   return 500;
 }
 

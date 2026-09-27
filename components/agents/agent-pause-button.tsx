@@ -32,8 +32,7 @@ export function AgentPauseButton({
     });
   }
 
-  // Only real backend-supported transitions are exposed. Delete/duplicate
-  // have no backend implementation, so they are intentionally absent.
+  // Only real backend-supported transitions are exposed.
   if (status !== "ACTIVE" && status !== "PAUSED") return null;
 
   return (

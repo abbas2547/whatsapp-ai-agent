@@ -10,8 +10,11 @@ import { Button } from "@/components/ui/button";
 import { Input, Label, FieldError } from "@/components/ui/input";
 
 const AUTH_ERRORS: Record<string, string> = {
+  // With account linking enabled, password + Google share one account per
+  // email, so this should rarely appear (e.g. unverified provider email).
+  // Keep the message actionable instead of blocking Google login.
   OAuthAccountNotLinked:
-    "This email is already registered with password login. Log in with your email and password instead.",
+    "This email is linked to another sign-in method. Try logging in with your email and password, then connect Google from your account — or try Google again.",
   CredentialsSignin: "Invalid email or password.",
   // OAuth round-trip failures (expired tab, restarted server, pop-up
   // blockers, or opening the app under a different host mid-flow): the fix is

@@ -4,7 +4,14 @@ import { assertAdmin, requireOrgContext } from "@/lib/tenant";
 import { connectWhatsApp } from "@/services/whatsapp/connect";
 import { fail } from "./_shared";
 
-export async function connectWhatsAppAction(input: { wabaId: string; phoneNumberId: string; accessToken: string; displayPhoneNumber?: string }) {
+export async function connectWhatsAppAction(input: {
+  wabaId?: string;
+  phoneNumberId?: string;
+  accessToken?: string;
+  displayPhoneNumber?: string;
+  clientId?: string;
+  clientSecret?: string;
+}) {
   try {
     const ctx = await requireOrgContext();
     assertAdmin(ctx);

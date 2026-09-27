@@ -8,6 +8,8 @@ const envSchema = z.object({
   NEXTAUTH_URL: z.string().optional(),
   NEXT_PUBLIC_APP_URL: z.string().optional(),
   GEMINI_API_KEY: z.string().optional(),
+  GEMINI_MODEL: z.string().optional(),
+  GEMINI_EMBEDDING_MODEL: z.string().optional(),
   META_APP_ID: z.string().optional(),
   META_APP_SECRET: z.string().optional(),
   META_ACCESS_TOKEN: z.string().optional(),

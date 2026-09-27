@@ -55,7 +55,7 @@ export async function addDocument(input: {
   userId: string;
   knowledgeBaseId: string;
   name: string;
-  sourceType: "pdf" | "docx" | "txt" | "manual" | "faq" | "product";
+  sourceType: "pdf" | "docx" | "txt" | "manual" | "faq" | "product" | "website";
   mimeType?: string;
   sizeBytes?: number;
   content: string;

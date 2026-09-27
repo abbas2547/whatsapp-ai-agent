@@ -85,16 +85,73 @@ async function cfFetch(
   const data = (await res.json().catch(() => null)) as Record<string, unknown> | null;
   if (!res.ok) {
     const err = (data ?? {}) as CashfreeApiError;
-    // Never forward provider internals; map to a safe message.
+    const providerCode = typeof err.code === "string" ? err.code : undefined;
+    const providerMessage = typeof err.message === "string" ? err.message : "";
+    // Log the real provider reason server-side (safe: no secrets in error
+    // bodies) so "declined" is always diagnosable from server logs.
+    console.error(
+      `[cashfree] ${init.method} ${path} -> HTTP ${res.status}${providerCode ? ` code=${providerCode}` : ""}${providerMessage ? ` message=${providerMessage.slice(0, 300)}` : ""}`,
+    );
+    if (res.status === 401 || res.status === 403) {
+      throw new CashfreeError(
+        "Payment provider rejected our credentials. Please contact support.",
+        502,
+        providerCode,
+      );
+    }
     throw new CashfreeError(
-      res.status === 401 || res.status === 403
-        ? "Payment provider rejected our credentials. Please contact support."
-        : "Payment provider declined the request. Please try again.",
+      mapDeclineMessage(path, res.status, providerCode, providerMessage),
       502,
-      typeof err.code === "string" ? err.code : undefined,
+      providerCode,
     );
   }
   return data ?? {};
+}
+
+/**
+ * Maps common Cashfree 4xx validation failures to actionable messages.
+ * Never includes secrets — only the provider's public code/message.
+ */
+function mapDeclineMessage(path: string, status: number, code?: string, providerMessage?: string): string {
+  const hay = `${code || ""} ${providerMessage || ""}`.toLowerCase();
+  if (/customer_phone|phone.*invalid|invalid.*phone/.test(hay)) {
+    return "The phone number was rejected by the payment provider. Please enter a valid 10-digit Indian mobile number.";
+  }
+  if (/order_id.*exist|duplicate.*order|order.*already/.test(hay)) {
+    return "This order already exists with the payment provider. Please wait a minute and start checkout again.";
+  }
+  if (/customer_email|email.*invalid|invalid.*email/.test(hay)) {
+    return "The email address was rejected by the payment provider. Please check it and try again.";
+  }
+  if (/amount|order_amount/.test(hay)) {
+    return "The order amount was rejected by the payment provider. Please try again or contact support.";
+  }
+  if (/return_url|notify_url|order_meta/.test(hay)) {
+    return "Payment configuration was rejected by the provider. Please contact support.";
+  }
+  if (status >= 500) {
+    return "Payment provider is having issues right now. Please try again in a moment.";
+  }
+  return `Payment provider declined the request${code ? ` (${code})` : ""}. Please check your details and try again.`;
+}
+
+/**
+ * Normalizes a user-entered phone number to the 10-digit Indian mobile
+ * format Cashfree requires for INR orders. Accepts "+91…", "91…", "0…" and
+ * spaced/dashed input. Throws an AppError-like Error on invalid input.
+ */
+export function normalizeCustomerPhone(raw: string): string {
+  let digits = String(raw || "").replace(/[^\d]/g, "");
+  // Strip Indian country-code / trunk prefixes users commonly include.
+  if (digits.length === 12 && digits.startsWith("91")) digits = digits.slice(2);
+  else if (digits.length === 11 && digits.startsWith("0")) digits = digits.slice(1);
+  if (!/^[6-9]\d{9}$/.test(digits)) {
+    throw new CashfreeError(
+      "Please enter a valid 10-digit Indian mobile number for the payment receipt.",
+      400,
+    );
+  }
+  return digits;
 }
 
 export interface CreateOrderInput {
@@ -130,7 +187,10 @@ export async function createCashfreeOrder(cfg: CashfreeConfig, input: CreateOrde
       order_meta: {
         return_url: input.returnUrl,
         notify_url: input.notifyUrl,
-        payment_methods: "upi,card,netbanking,wallet",
+        // NOTE: no `payment_methods` filter — Cashfree validates its values
+        // strictly and unknown codes (e.g. "card") make the whole order
+        // request fail with a 400. Omitting it shows all merchant-enabled
+        // methods (UPI, cards, netbanking, wallets).
       },
     },
   });
