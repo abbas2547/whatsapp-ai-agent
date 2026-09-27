@@ -136,7 +136,7 @@ export function CheckoutModal({
             </div>
 
             {error ? (
-              <p className="flex items-start gap-1.5 text-xs font-medium text-red-600 dark:text-red-400" role="alert">
+              <p className="flex items-start gap-1.5 text-xs font-medium  text-red-600 dark:text-red-400" role="alert">
                 <TriangleAlert className="mt-0.5 h-3.5 w-3.5 shrink-0" /> {error}
               </p>
             ) : null}
@@ -153,8 +153,7 @@ export function CheckoutModal({
               <ShieldCheck className="h-3.5 w-3.5" /> Secured by Cashfree · UPI, cards, netbanking
             </p>
             <p className="text-center text-[11px] text-muted-foreground">
-              If Cashfree shows “Broken Link / domain not enabled”, your domain must be whitelisted + approved in the
-              same Test/Production mode — see Billing → Payment configuration.
+              
             </p>
           </>
         )}
