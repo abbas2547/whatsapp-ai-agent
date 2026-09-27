@@ -106,7 +106,7 @@ export function WhatsAppConnectCard({
                   type={showSecret ? "text" : "password"}
                   value={clientSecret}
                   onChange={(e) => setClientSecret(e.target.value)}
-                  placeholder="Your permanent access token"
+                  placeholder="EAA… (access token — not the App Secret)"
                   autoComplete="off"
                   className="pr-11"
                   required
@@ -122,7 +122,8 @@ export function WhatsAppConnectCard({
               </div>
             </div>
             <p className="text-xs leading-5 text-muted-foreground">
-              Enterprise plan users can pull in credentials from external vaults.{" "}
+              Paste an <b>access token</b> (starts with EAA…) from WhatsApp → API Setup — not the App Secret from App
+              Settings. Enterprise plan users can pull in credentials from external vaults.{" "}
               <a
                 href="https://developers.facebook.com/docs/whatsapp/cloud-api/get-started"
                 target="_blank"

@@ -141,6 +141,31 @@ export type WabaPhone = {
 };
 
 /**
+ * Verifies an access token is live before it is used for anything else.
+ * A plain `/me` call needs no permissions, so it cleanly separates "token
+ * is dead" (fix: generate a new one) from "wrong ID / missing permissions"
+ * (different fix) instead of one confusing error for both.
+ */
+export async function verifyAccessToken(accessToken: string): Promise<{ id: string; name?: string }> {
+  const res = await fetch(`${GRAPH}/me?fields=id,name`, {
+    headers: { Authorization: `Bearer ${accessToken}` },
+  });
+  const json = await res.json().catch(() => null);
+  if (!res.ok) {
+    throw whatsAppApiError(json, res.status, "Your access token was rejected by Meta.");
+  }
+  const id = (json as { id?: unknown } | null)?.id;
+  if (typeof id !== "string" || !id) {
+    throw new AppError(
+      "Your Client Secret (access token) is invalid or expired. Generate a new token in Meta and try again.",
+      "WHATSAPP_BAD_TOKEN",
+      400,
+    );
+  }
+  return { id, name: (json as { name?: string }).name };
+}
+
+/**
  * Lists phone numbers on a WhatsApp Business Account so callers only need the
  * WABA id (Client ID) + access token (Client Secret) — no manual Phone ID.
  */

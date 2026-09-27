@@ -4,7 +4,7 @@ import { encryptSecret } from "@/lib/encryption";
 import { env } from "@/lib/env";
 import { AppError, LimitError } from "@/lib/errors";
 import { canConnectWhatsAppNumber } from "@/services/billing/entitlements";
-import { fetchPhoneNumber, fetchWabaPhoneNumbers, resolveAccessToken, sendWhatsAppMessage } from "@/services/whatsapp/client";
+import { fetchPhoneNumber, fetchWabaPhoneNumbers, resolveAccessToken, sendWhatsAppMessage, verifyAccessToken } from "@/services/whatsapp/client";
 import { writeAuditLog } from "@/services/audit/audit.service";
 
 // Simplified (n8n-style) credentials: only Client ID + Client Secret.
@@ -26,11 +26,37 @@ const connectSchema = z.object({
 export async function connectWhatsApp(organizationId: string, userId: string, input: z.infer<typeof connectSchema>) {
   const parsed = connectSchema.parse(input);
   const wabaId = (parsed.wabaId || parsed.clientId || "").trim();
-  const accessToken = (parsed.accessToken || parsed.clientSecret || "").trim();
+  // Access tokens never contain whitespace — pasted values often carry stray
+  // spaces/newlines, so strip them all instead of failing on a good token.
+  const accessToken = (parsed.accessToken || parsed.clientSecret || "").replace(/\s+/g, "");
   let phoneNumberId = (parsed.phoneNumberId || "").trim();
   if (!wabaId || accessToken.length < 10) {
     throw new AppError("Enter your Client ID and Client Secret to connect.", "INVALID_INPUT", 400);
   }
+  // Catch the two classic wrong-value mistakes BEFORE any Meta call, with a
+  // message that names the exact fix:
+  // - 32-char hex = Meta "App Secret" (App Settings → Basic). It is NOT an
+  //   access token and can never work here.
+  // - "xxx|yyy" pipe form = App Token. WhatsApp endpoints need a
+  //   user/system-user token instead.
+  if (/^[0-9a-f]{32}$/i.test(accessToken)) {
+    throw new AppError(
+      "That looks like your Meta App Secret — it can't be used to connect. Paste an access token instead (starts with EAA…): WhatsApp → API Setup → temporary token, or a System User token for a permanent connection.",
+      "WHATSAPP_APP_SECRET_MISTAKE",
+      400,
+    );
+  }
+  if (accessToken.includes("|")) {
+    throw new AppError(
+      "That looks like a Meta App Token (app_id|secret) — WhatsApp needs a user access token instead (starts with EAA…). Generate one under WhatsApp → API Setup or as a System User token.",
+      "WHATSAPP_APP_TOKEN_MISTAKE",
+      400,
+    );
+  }
+  // Verify the token is live FIRST, so a dead token reports exactly that —
+  // and a good token that fails later unambiguously means wrong ID or
+  // missing permissions, never a vague failure.
+  await verifyAccessToken(accessToken);
   // No phone id supplied (simplified form): pick the first number on the WABA.
   let discovered: { display_phone_number?: string; verified_name?: string; quality_rating?: string } | null = null;
   if (!phoneNumberId) {
