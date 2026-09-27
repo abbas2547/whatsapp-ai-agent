@@ -105,6 +105,20 @@ export async function createBillingOrder(input: {
 
   const reference = newPaymentReference();
   // Cashfree order_id doubles as our reference: safe charset, unique, joinable.
+  const returnUrl = `${appUrl()}/billing/success`;
+  const notifyUrl = `${appUrl()}/api/webhooks/cashfree`;
+  // Cashfree renders "Broken Link / domain not enabled or approved" when
+  // these URLs' domain isn't whitelisted + APPROVED in the SAME dashboard
+  // mode (Test vs Production) as CASHFREE_ENVIRONMENT. Log the exact URLs so
+  // support can compare them character-for-character with the dashboard entry.
+  console.log(`[billing] checkout order ${reference}: env=${cfg.env} return=${returnUrl} notify=${notifyUrl}`);
+  if (cfg.env === "production" && (!returnUrl.startsWith("https://") || !notifyUrl.startsWith("https://"))) {
+    throw new AppError(
+      "Payment return URLs must be https in production. Set NEXT_PUBLIC_APP_URL to your https domain.",
+      "INVALID_APP_URL",
+      500,
+    );
+  }
   const payment = await db.payment.create({
     data: {
       organizationId: input.organizationId,
@@ -137,8 +151,8 @@ export async function createBillingOrder(input: {
     customerId: input.organizationId,
     customerEmail: input.userEmail,
     customerPhone: phone,
-    returnUrl: `${appUrl()}/billing/success`,
-    notifyUrl: `${appUrl()}/api/webhooks/cashfree`,
+    returnUrl,
+    notifyUrl,
   }).catch(async (e: unknown) => {
     await db.payment.update({ where: { id: payment.id }, data: { status: "FAILED" } }).catch(() => undefined);
     // Keep the provider's reason in the audit trail for support diagnosis.

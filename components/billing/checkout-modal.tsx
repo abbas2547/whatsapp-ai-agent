@@ -152,6 +152,10 @@ export function CheckoutModal({
             <p className="flex items-center justify-center gap-1.5 text-[11px] text-muted-foreground">
               <ShieldCheck className="h-3.5 w-3.5" /> Secured by Cashfree · UPI, cards, netbanking
             </p>
+            <p className="text-center text-[11px] text-muted-foreground">
+              If Cashfree shows “Broken Link / domain not enabled”, your domain must be whitelisted + approved in the
+              same Test/Production mode — see Billing → Payment configuration.
+            </p>
           </>
         )}
       </DialogContent>

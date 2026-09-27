@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { SubscriptionCard } from "@/components/billing/subscription-card";
 import { UsageCard } from "@/components/billing/usage-card";
+import { PaymentConfigCard } from "@/components/billing/payment-config-card";
 import { getActiveSubscription, getUsageSummary } from "@/services/billing/entitlements";
 import { getPlan, formatINR, planPricePaise } from "@/services/billing/plans";
 import { fmtDateTime } from "@/components/format";
@@ -92,6 +93,8 @@ export default async function BillingPage() {
           }
         />
       </div>
+
+      <PaymentConfigCard />
 
       <Card>
         <CardHeader>
