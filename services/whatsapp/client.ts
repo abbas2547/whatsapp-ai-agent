@@ -78,6 +78,45 @@ export async function markWhatsAppRead(phoneNumberId: string, accessToken: strin
   });
 }
 
+/**
+ * Maps Meta Graph API failures to plain-English, actionable errors. Meta's
+ * raw messages (e.g. "(#100) Tried accessing nonexisting field
+ * (phone_numbers)") only make sense to API developers, so translate the
+ * common cases: wrong ID pasted as Client ID, bad/expired token, missing
+ * WhatsApp permissions on the token.
+ */
+function whatsAppApiError(json: unknown, status: number, fallback: string): AppError {
+  const err = (json as { error?: { message?: string; code?: number } } | null)?.error;
+  const message = typeof err?.message === "string" ? err.message : "";
+  const code = err?.code;
+  // Log the raw provider reason server-side for support diagnosis.
+  console.error(
+    `[whatsapp] Graph API error HTTP ${status}${code ? ` code=${code}` : ""}: ${message.slice(0, 300) || fallback}`,
+  );
+  if (code === 100 && /nonexisting field/i.test(message)) {
+    return new AppError(
+      "That Client ID isn't a WhatsApp Business Account (or the token can't access it). Copy the 'WhatsApp Business Account ID' from Meta → your app → WhatsApp → API Setup — not the App ID or Phone Number ID — and make sure the token has the whatsapp_business_management permission.",
+      "WHATSAPP_BAD_WABA_ID",
+      400,
+    );
+  }
+  if (code === 190 || /invalid oauth|session.*expir|invalid.*token|expired.*token/i.test(message)) {
+    return new AppError(
+      "Your Client Secret (access token) is invalid or expired. Generate a new token in Meta and try again.",
+      "WHATSAPP_BAD_TOKEN",
+      400,
+    );
+  }
+  if (/permission|not authorized|scope|requires.*manag/i.test(message)) {
+    return new AppError(
+      "Your token is missing WhatsApp permissions. It needs whatsapp_business_management and whatsapp_business_messaging — create a System User token with both in Meta Business Settings.",
+      "WHATSAPP_PERMISSIONS",
+      403,
+    );
+  }
+  return new AppError(message || fallback, "WHATSAPP_API_ERROR", 502);
+}
+
 export async function fetchPhoneNumber(phoneNumberId: string, accessToken: string) {
   const res = await fetch(
     `${GRAPH}/${phoneNumberId}?fields=display_phone_number,verified_name,quality_rating`,
@@ -85,7 +124,7 @@ export async function fetchPhoneNumber(phoneNumberId: string, accessToken: strin
   );
   const json = await res.json();
   if (!res.ok) {
-    throw new AppError(json.error?.message || "Unable to load WhatsApp phone number", "WHATSAPP_PHONE_LOOKUP", 502);
+    throw whatsAppApiError(json, res.status, "Unable to load WhatsApp phone number");
   }
   return json as {
     display_phone_number?: string;
@@ -115,10 +154,10 @@ export async function fetchWabaPhoneNumbers(wabaId: string, accessToken: string)
     data?: WabaPhone[];
   };
   if (!res.ok) {
-    throw new AppError(
-      json.error?.message || "Couldn't find WhatsApp numbers for this Client ID. Check the ID and Secret, then try again.",
-      "WHATSAPP_WABA_LOOKUP",
-      502,
+    throw whatsAppApiError(
+      json,
+      res.status,
+      "Couldn't find WhatsApp numbers for this Client ID. Check the ID and Secret, then try again.",
     );
   }
   return json.data || [];
