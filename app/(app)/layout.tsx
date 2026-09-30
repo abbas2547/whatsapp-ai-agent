@@ -3,6 +3,7 @@ import { requireSessionOrRedirect } from "@/app/actions/session";
 import { db } from "@/lib/db";
 import { listUserWorkspaces } from "@/services/organization/organization.service";
 import { getActiveSubscription, isPaidActive } from "@/services/billing/entitlements";
+import { isAdminEmail } from "@/lib/admin";
 import { Shell } from "@/components/shell";
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
@@ -26,6 +27,9 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   // First-run experience: fresh workspaces go through onboarding once.
   if (!organization.onboardingCompletedAt) redirect("/onboarding");
 
+  // Server-computed admin flag (boolean only — email/authorization stays server-side).
+  const isAdmin = isAdminEmail(session.user.email);
+
   return (
     <Shell
       user={{
@@ -39,6 +43,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       alertCount={alertCount}
       planId={subscription.planId}
       paidActive={isPaidActive(subscription)}
+      isAdmin={isAdmin}
     >
       {children}
     </Shell>

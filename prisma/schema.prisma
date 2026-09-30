@@ -152,14 +152,19 @@ enum PaymentStatus {
 }
 
 model User {
-  id             String   @id @default(cuid())
-  email          String   @unique
+  id             String    @id @default(cuid())
+  email          String    @unique
   name           String?
   passwordHash   String?
   image          String?
   emailVerified  DateTime?
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+  // Presence (DB source of truth; Redis optional ephemeral layer elsewhere).
+  // Updated on login + throttled heartbeat (max ~1 write / 45s per user).
+  lastLoginAt    DateTime?
+  lastLogoutAt   DateTime?
+  lastSeenAt     DateTime?
 
   memberships    OrganizationMember[]
   assignedConversations Conversation[] @relation("AssignedUser")
@@ -168,6 +173,12 @@ model User {
   auditLogs      AuditLog[]
   sessions       Session[]
   accounts       Account[]
+  loginEvents    LoginEvent[]
+  userSessions   UserSession[]
+  adminAuditLogs AdminAuditLog[] @relation("AdminActor")
+
+  @@index([lastSeenAt])
+  @@index([createdAt])
 }
 
 model Account {
@@ -209,8 +220,13 @@ model Organization {
   name      String
   slug      String   @unique
   onboardingCompletedAt DateTime?
+  // Admin moderation (non-destructive; null = active)
+  suspendedAt     DateTime?
+  suspendedReason String?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  @@index([suspendedAt])
 
   members              OrganizationMember[]
   whatsappAccounts     WhatsAppAccount[]
@@ -778,4 +794,95 @@ model PaymentEvent {
 
   @@unique([provider, eventId])
   @@index([providerOrderId])
+}
+
+// ─── Admin / presence additions (additive only, no existing data touched) ───
+
+enum LoginEventType {
+  LOGIN
+  LOGOUT
+  REGISTER
+}
+
+enum AdminAuditResult {
+  SUCCESS
+  DENIED
+  ERROR
+}
+
+model LoginEvent {
+  id             String         @id @default(cuid())
+  userId         String
+  organizationId String?
+  type           LoginEventType
+  ip             String?
+  userAgent      String?
+  createdAt      DateTime       @default(now())
+  user           User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+  @@index([type, createdAt])
+  @@index([createdAt])
+}
+
+model UserSession {
+  id             String    @id @default(cuid())
+  userId         String
+  organizationId String?
+  ip             String?
+  userAgent      String?
+  deviceLabel    String?
+  createdAt      DateTime  @default(now())
+  lastSeenAt     DateTime  @default(now())
+  expiresAt      DateTime?
+  revokedAt      DateTime?
+  user           User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, lastSeenAt])
+  @@index([lastSeenAt])
+  @@index([userId, revokedAt])
+}
+
+model AdminAuditLog {
+  id          String           @id @default(cuid())
+  actorId     String?
+  actorEmail  String?
+  action      String
+  resource    String?
+  resourceId  String?
+  workspaceId String?
+  result      AdminAuditResult @default(SUCCESS)
+  ip          String?
+  metadata    Json?
+  createdAt   DateTime         @default(now())
+  actor       User?            @relation("AdminActor", fields: [actorId], references: [id], onDelete: SetNull)
+
+  @@index([action, createdAt])
+  @@index([actorId, createdAt])
+  @@index([workspaceId, createdAt])
+  @@index([createdAt])
+}
+
+model AdminNotification {
+  id        String   @id @default(cuid())
+  type      String
+  title     String
+  body      String
+  read      Boolean  @default(false)
+  metadata  Json?
+  createdAt DateTime @default(now())
+
+  @@index([read, createdAt])
+  @@index([type, createdAt])
+}
+
+model SystemHealthCheck {
+  id        String   @id @default(cuid())
+  service   String
+  status    String
+  latencyMs Int?
+  message   String?
+  checkedAt DateTime @default(now())
+
+  @@index([service, checkedAt])
 }

@@ -1,25 +1,39 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="eluue ai agent logo">
   <defs>
     <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0" stop-color="#34D399"/>
-      <stop offset="0.55" stop-color="#10B981"/>
-      <stop offset="1" stop-color="#047857"/>
+      <stop offset="0" stop-color="#6EE7B7"/>
+      <stop offset="0.32" stop-color="#10B981"/>
+      <stop offset="0.68" stop-color="#0D9488"/>
+      <stop offset="1" stop-color="#065F46"/>
     </linearGradient>
     <linearGradient id="spark" x1="0" y1="0" x2="0" y2="1">
       <stop offset="0" stop-color="#059669"/>
-      <stop offset="1" stop-color="#065F46"/>
+      <stop offset="1" stop-color="#064E3B"/>
     </linearGradient>
     <linearGradient id="sheen" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0" stop-color="#FFFFFF" stop-opacity="0.28"/>
-      <stop offset="0.45" stop-color="#FFFFFF" stop-opacity="0"/>
+      <stop offset="0" stop-color="#FFFFFF" stop-opacity="0.38"/>
+      <stop offset="0.5" stop-color="#FFFFFF" stop-opacity="0.06"/>
+      <stop offset="0.52" stop-color="#FFFFFF" stop-opacity="0"/>
     </linearGradient>
+    <radialGradient id="glow" cx="0.5" cy="0.32" r="0.75">
+      <stop offset="0" stop-color="#FFFFFF" stop-opacity="0.35"/>
+      <stop offset="1" stop-color="#FFFFFF" stop-opacity="0"/>
+    </radialGradient>
   </defs>
-  <rect x="24" y="24" width="464" height="464" rx="118" fill="url(#bg)"/>
-  <rect x="24" y="24" width="464" height="464" rx="118" fill="url(#sheen)"/>
+  <!-- frame-safe squircle: 24px outer padding so nothing clips on mobile masks -->
+  <rect x="24" y="24" width="464" height="464" rx="128" fill="url(#bg)"/>
+  <rect x="24" y="24" width="464" height="464" rx="128" fill="url(#sheen)"/>
+  <ellipse cx="256" cy="180" rx="190" ry="110" fill="url(#glow)"/>
+  <!-- chat bubble, centered in safe zone -->
   <g>
-    <rect x="132" y="150" width="248" height="212" rx="62" fill="#FFFFFF"/>
-    <path d="M188 348 L164 424 L248 352 Z" fill="#FFFFFF"/>
-    <path d="M256 192 C263 236 287 254 331 261 C287 268 263 286 256 330 C249 286 225 268 181 261 C225 254 249 236 256 192 Z" fill="url(#spark)"/>
-    <circle cx="322" cy="200" r="14" fill="#10B981"/>
+    <rect x="126" y="150" width="260" height="206" rx="64" fill="#FFFFFF"/>
+    <path d="M184 342 L158 424 L252 348 Z" fill="#FFFFFF"/>
+    <!-- AI spark -->
+    <path d="M256 188 C264 236 290 256 340 264 C290 272 264 292 256 340 C248 292 222 272 172 264 C222 256 248 236 256 188 Z" fill="url(#spark)"/>
+    <circle cx="326" cy="196" r="15" fill="#10B981"/>
+    <circle cx="326" cy="196" r="6.5" fill="#FFFFFF" opacity="0.9"/>
+    <!-- orbit dots -->
+    <circle cx="196" cy="208" r="7" fill="#6EE7B7"/>
+    <circle cx="182" cy="300" r="5" fill="#A7F3D0"/>
   </g>
 </svg>

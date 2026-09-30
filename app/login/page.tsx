@@ -18,6 +18,7 @@ export default async function LoginPage({
   const sp = await searchParams;
   const authError = typeof sp.error === "string" ? sp.error : undefined;
   const justCreated = sp.created === "1";
+  const wasRevoked = sp.revoked === "1";
   const next = safeNextPath(typeof sp.next === "string" ? sp.next : null) ?? undefined;
 
   // Never crash the login page on misconfiguration (e.g. missing env vars
@@ -47,6 +48,11 @@ export default async function LoginPage({
   return (
     <AuthShell title="Welcome back" subtitle="Log in to run your WhatsApp operation.">
       <ProdUrlWarning />
+      {wasRevoked && (
+        <p className="mb-4 rounded-xl border border-amber-500/30 bg-amber-500/10 px-3 py-2.5 text-[13px] font-medium text-amber-700 dark:text-amber-300" role="status">
+          Your session was signed out. Please log in again.
+        </p>
+      )}
       <LoginForm googleEnabled={googleEnabled} authError={authError} justCreated={justCreated} next={next} />
     </AuthShell>
   );

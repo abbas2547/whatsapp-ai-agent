@@ -28,6 +28,16 @@ export async function getOrgContext(): Promise<OrgContext | null> {
     include: { user: true },
   });
   if (!membership) return null;
+  // Revoked (admin force-logout): deny workspace access. Uses the already
+  // fetched user row — zero extra queries. Callers throw 401 via
+  // requireOrgContext; page gates redirect to force-logout first.
+  if (
+    session.user.iat &&
+    membership.user.lastLogoutAt &&
+    session.user.iat * 1000 < membership.user.lastLogoutAt.getTime()
+  ) {
+    return null;
+  }
   return {
     userId: membership.userId,
     organizationId: membership.organizationId,

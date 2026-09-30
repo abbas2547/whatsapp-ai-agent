@@ -20,6 +20,7 @@ import {
   MessagesSquare,
   PanelLeft,
   Settings,
+  ShieldCheck,
   Workflow,
   X,
   Zap,
@@ -32,6 +33,9 @@ import { useDebouncedValue } from "@/hooks/use-debounce";
 import { InstallButton } from "@/components/pwa/install-button";
 import { UpgradeButton } from "@/components/billing/upgrade-button";
 import { WorkspaceSwitcher, type WorkspaceItem } from "@/components/shell/workspace-switcher";
+import { PresenceHeartbeat } from "@/components/global/presence-heartbeat";
+import { CommandPalette } from "@/components/global/command-palette";
+import { NotificationCenter } from "@/components/global/notification-center";
 
 type NavItem = { href: string; label: string; icon: LucideIcon; badge?: number };
 
@@ -91,6 +95,7 @@ export function Shell({
   alertCount = 0,
   planId = "free",
   paidActive = false,
+  isAdmin = false,
   children,
 }: {
   user: { name?: string | null; email?: string | null; image?: string | null; role?: string };
@@ -100,6 +105,7 @@ export function Shell({
   alertCount?: number;
   planId?: "free" | "starter" | "pro" | "business";
   paidActive?: boolean;
+  isAdmin?: boolean;
   children: React.ReactNode;
 }) {
   const pathname = usePathname();
@@ -134,8 +140,17 @@ export function Shell({
     });
   }
 
+  const groups = isAdmin
+    ? [
+        ...GROUPS,
+        { title: "Admin", items: [{ href: "/admin", label: "Admin Console", icon: ShieldCheck }] },
+      ]
+    : GROUPS;
+
   return (
     <div className="flex min-h-screen w-full bg-background">
+      <PresenceHeartbeat />
+      <CommandPalette />
       {/* Desktop sidebar */}
       <aside
         className={cn(
@@ -153,7 +168,7 @@ export function Shell({
         </div>
 
         <nav className="flex-1 space-y-5 overflow-y-auto p-2.5">
-          {GROUPS.map((group) => (
+          {groups.map((group) => (
             <div key={group.title}>
               {!collapsed && (
                 <p className="px-2.5 pb-1.5 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/80">
@@ -222,7 +237,7 @@ export function Shell({
               </Button>
             </div>
             <nav className="flex-1 space-y-5 overflow-y-auto p-3">
-              {GROUPS.map((group) => (
+              {groups.map((group) => (
                 <div key={group.title}>
                   <p className="px-2.5 pb-1.5 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/80">
                     {group.title}
@@ -267,6 +282,7 @@ export function Shell({
           alertCount={alertCount}
           planId={planId}
           paidActive={paidActive}
+          isAdmin={isAdmin}
           onMenu={() => setMobileOpen(true)}
         />
         <main className="min-w-0 flex-1 px-4 py-5 sm:px-6 md:px-8 md:py-6">
@@ -279,6 +295,14 @@ export function Shell({
   );
 }
 
+async function trackLogout() {
+  try {
+    await fetch("/api/auth/track-logout", { method: "POST", keepalive: true });
+  } catch {
+    /* best-effort */
+  }
+}
+
 function UserFooter({
   user,
   collapsed,
@@ -286,6 +310,10 @@ function UserFooter({
   user: { name?: string | null; email?: string | null; image?: string | null; role?: string };
   collapsed: boolean;
 }) {
+  async function doSignOut() {
+    await trackLogout();
+    await signOut({ callbackUrl: "/login" });
+  }
   if (collapsed) {
     return (
       <div className="flex flex-col items-center gap-1">
@@ -302,7 +330,7 @@ function UserFooter({
           )}
         </Link>
         <button
-          onClick={() => signOut({ callbackUrl: "/login" })}
+          onClick={doSignOut}
           className="flex h-8 w-8 items-center justify-center rounded-lg text-muted-foreground hover:bg-muted hover:text-foreground"
           title="Log out"
           aria-label="Log out"
@@ -331,7 +359,7 @@ function UserFooter({
         </span>
       </Link>
       <button
-        onClick={() => signOut({ callbackUrl: "/login" })}
+        onClick={doSignOut}
         className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
         title="Log out"
         aria-label="Log out"
@@ -347,12 +375,14 @@ function TopBar({
   alertCount,
   planId,
   paidActive,
+  isAdmin = false,
   onMenu,
 }: {
   organizationName: string;
   alertCount: number;
   planId: "free" | "starter" | "pro" | "business";
   paidActive: boolean;
+  isAdmin?: boolean;
   onMenu: () => void;
 }) {
   const pathname = usePathname();
@@ -421,6 +451,8 @@ function TopBar({
           />
         </form>
 
+        <NotificationCenter />
+
         <Link
           href="/inbox?filter=unread"
           className="relative flex h-9 w-9 items-center justify-center rounded-xl border border-border bg-card text-muted-foreground shadow-sm transition-colors hover:bg-muted hover:text-foreground"
@@ -442,6 +474,17 @@ function TopBar({
           <span className="h-2 w-2 rounded-full bg-emerald-500" aria-hidden />
           Workspace
         </Link>
+
+        {isAdmin && (
+          <Link
+            href="/admin"
+            className="flex h-9 items-center gap-1.5 rounded-xl bg-primary px-3 text-[13px] font-semibold text-primary-foreground shadow-sm transition-colors hover:bg-[var(--primary-hover)]"
+            title="Open admin console"
+          >
+            <ShieldCheck className="h-4 w-4" aria-hidden />
+            <span className="hidden sm:inline">Admin</span>
+          </Link>
+        )}
 
         <UpgradeButton planId={planId} paidActive={paidActive} />
 

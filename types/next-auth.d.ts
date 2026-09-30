@@ -10,6 +10,8 @@ declare module "next-auth" {
       image?: string | null;
       organizationId?: string;
       role?: string;
+      /** JWT issue time (seconds). Used by app-layer session revocation gates. */
+      iat?: number;
     };
   }
 }

@@ -1,9 +1,9 @@
 "use server";
 
 import { z } from "zod";
-import { auth } from "@/auth";
 import { db } from "@/lib/db";
-import { ForbiddenError, UnauthorizedError } from "@/lib/errors";
+import { ForbiddenError } from "@/lib/errors";
+import { requireLiveSession } from "@/lib/session-guard";
 import { requireOrgContext } from "@/lib/tenant";
 import { createWorkspaceForUser } from "@/services/organization/organization.service";
 import { writeAuditLog } from "@/services/audit/audit.service";
@@ -11,8 +11,7 @@ import { fail } from "./_shared";
 
 export async function createWorkspaceAction(organizationName: string) {
   try {
-    const session = await auth();
-    if (!session?.user?.id) throw new UnauthorizedError();
+    const session = await requireLiveSession();
     const name = z.string().trim().min(2).max(100).parse(organizationName);
     const org = await createWorkspaceForUser(session.user.id, name);
     return { ok: true as const, organizationId: org.id };
@@ -23,8 +22,7 @@ export async function createWorkspaceAction(organizationName: string) {
 
 export async function createAdditionalWorkspaceAction(organizationName: string) {
   try {
-    const session = await auth();
-    if (!session?.user?.id) throw new UnauthorizedError();
+    const session = await requireLiveSession();
     const name = z.string().trim().min(2).max(100).parse(organizationName);
     const org = await createWorkspaceForUser(session.user.id, name, { allowMultiple: true });
     return { ok: true as const, organizationId: org.id };
@@ -35,8 +33,7 @@ export async function createAdditionalWorkspaceAction(organizationName: string) 
 
 export async function listMyWorkspacesAction() {
   try {
-    const session = await auth();
-    if (!session?.user?.id) throw new UnauthorizedError();
+    const session = await requireLiveSession();
     const { listUserWorkspaces } = await import("@/services/organization/organization.service");
     return { ok: true as const, workspaces: await listUserWorkspaces(session.user.id) };
   } catch (error) {
@@ -51,8 +48,7 @@ export async function listMyWorkspacesAction() {
  */
 export async function switchWorkspaceAction(organizationId: string) {
   try {
-    const session = await auth();
-    if (!session?.user?.id) throw new UnauthorizedError();
+    const session = await requireLiveSession();
     const membership = await db.organizationMember.findFirst({
       where: { userId: session.user.id, organizationId },
       select: { organizationId: true, role: true, organization: { select: { name: true } } },

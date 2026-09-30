@@ -106,6 +106,29 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         token.organizationId = membership?.organizationId;
         token.role = membership?.role;
       }
+      // NOTE: never return null from this callback — Auth.js v5 throws
+      // JWTSessionError instead of signing the user out. Session revocation
+      // (admin force-logout) is enforced at the app layer instead:
+      // requireSessionOrRedirect() and getOrgContext() compare the token
+      // issue time (exposed as session.user.iat below) against
+      // User.lastLogoutAt. See lib/session-guard.ts.
+      // Presence bookkeeping (non-blocking, throttled): track login + last seen
+      // without adding Redis or breaking auth when DB is slow.
+      if (token.sub && (trigger === "signIn" || user)) {
+        const uid = token.sub;
+        const orgId = token.organizationId as string | undefined;
+        void (async () => {
+          try {
+            await db.user.update({ where: { id: uid }, data: { lastLoginAt: new Date(), lastSeenAt: new Date() } });
+            await db.loginEvent.create({ data: { userId: uid, organizationId: orgId, type: "LOGIN" } });
+            await db.userSession.create({
+              data: { userId: uid, organizationId: orgId, expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000) },
+            });
+          } catch {
+            // Never break auth on bookkeeping.
+          }
+        })();
+      }
       return token;
     },
     async session({ session, token }) {
@@ -113,6 +136,9 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         session.user.id = token.sub as string;
         session.user.organizationId = token.organizationId as string | undefined;
         session.user.role = token.role as string | undefined;
+        // Token issue time (seconds) — the app-layer revocation gates compare
+        // this against User.lastLogoutAt. Already present in the JWT payload.
+        session.user.iat = token.iat;
       }
       return session;
     },

@@ -2,6 +2,10 @@ export type AIMessage = {
   role: "system" | "user" | "assistant" | "tool";
   content: string;
   name?: string;
+  /** OpenAI-style tool-call plumbing (used by OpenRouter; ignored by Gemini). */
+  id?: string;
+  toolCalls?: AIToolCall[];
+  toolCallId?: string;
 };
 
 export type AIToolSpec = {
@@ -33,7 +37,31 @@ export interface AIProvider {
 }
 
 import { GeminiProvider } from "./gemini.provider";
+import { OpenRouterProvider } from "./openrouter.provider";
+import { env, isPlaceholder } from "@/lib/env";
 
 export function getAIProvider(): AIProvider {
-  return new GeminiProvider();
+  // Default is now OpenRouter. Gemini stays as a legacy fallback when no
+  // OpenRouter key is configured (backward compatible for existing installs).
+  const want = (process.env.AI_PROVIDER || "").trim().toLowerCase();
+  const hasOpenRouter = !isPlaceholder(env().OPENROUTER_API_KEY);
+  const hasGemini = !isPlaceholder(env().GEMINI_API_KEY);
+  if (want === "gemini") {
+    if (hasGemini) return new GeminiProvider();
+    if (hasOpenRouter) return new OpenRouterProvider();
+    return new GeminiProvider(); // throws a clear AI_NOT_CONFIGURED
+  }
+  if (hasOpenRouter) return new OpenRouterProvider();
+  if (hasGemini) return new GeminiProvider();
+  // No key at all — construct OpenRouter so the error message points at the
+  // current recommended variable (OPENROUTER_API_KEY).
+  return new OpenRouterProvider();
+}
+
+export function getAIProviderId(): string {
+  try {
+    return getAIProvider().id;
+  } catch {
+    return "openrouter";
+  }
 }

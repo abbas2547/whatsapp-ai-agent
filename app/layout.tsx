@@ -21,15 +21,16 @@ export const metadata: Metadata = {
   },
   description: "Run AI employees on WhatsApp: agents, inbox, leads, automations.",
   applicationName: "eluue ai agent",
+  manifest: "/manifest.webmanifest",
   appleWebApp: {
     capable: true,
-    statusBarStyle: "default",
-    title: "eluue ai agent",
+    statusBarStyle: "black-translucent",
+    title: "eluue",
   },
   formatDetection: { telephone: false },
   icons: {
     icon: [
-      { url: "/favicon.ico" },
+      { url: "/favicon.ico", sizes: "any" },
       { url: "/favicon-16x16.png", sizes: "16x16", type: "image/png" },
       { url: "/favicon-32x32.png", sizes: "32x32", type: "image/png" },
       { url: "/logo.svg", type: "image/svg+xml" },
@@ -39,9 +40,13 @@ export const metadata: Metadata = {
 };
 
 export const viewport: Viewport = {
-  themeColor: "#047857",
+  themeColor: [
+    { media: "(prefers-color-scheme: light)", color: "#047857" },
+    { media: "(prefers-color-scheme: dark)", color: "#022c22" },
+  ],
   width: "device-width",
   initialScale: 1,
+  maximumScale: 5,
   viewportFit: "cover",
 };
 

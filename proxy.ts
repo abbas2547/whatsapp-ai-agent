@@ -33,6 +33,7 @@ export async function proxy(request: NextRequest) {
   const token = await getSessionToken(request);
   const loggedIn = !!token;
   const isApp = url.pathname.startsWith("/dashboard") ||
+    url.pathname.startsWith("/admin") ||
     url.pathname.startsWith("/inbox") ||
     url.pathname.startsWith("/contacts") ||
     url.pathname.startsWith("/leads") ||
