@@ -38,6 +38,7 @@ export default async function IntegrationsPage() {
         webhookVerified={status.webhookVerified}
         phones={status.phones}
         wabaId={status.wabaId}
+        phoneNumberId={status.phones[0]?.phoneNumberId}
         webhookUrl={`${appUrl()}/api/webhooks/whatsapp`}
       />
 

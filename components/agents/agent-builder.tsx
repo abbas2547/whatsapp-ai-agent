@@ -125,11 +125,13 @@ export function AgentBuilder({
   phones,
   knowledge,
   tools,
+  aiStatus,
 }: {
   agent: AgentEditorValue | null;
   phones: BuilderPhone[];
   knowledge: BuilderKnowledge[];
   tools: BuilderTool[];
+  aiStatus?: { provider: string; model: string; connected: boolean };
 }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
@@ -379,7 +381,7 @@ export function AgentBuilder({
           {step === 3 && <StepKnowledge knowledge={knowledge} values={values} toggle={toggleKnowledge} />}
           {step === 4 && <StepTools tools={tools} values={values} toggle={toggleTool} />}
           {step === 5 && <StepWhatsApp phones={phones} values={values} set={set} />}
-          {step === 6 && <StepTest agentId={values.id} agentName={values.name} />}
+          {step === 6 && <StepTest agentId={values.id} agentName={values.name} aiStatus={aiStatus} />}
           {step === 7 && (
             <StepPublish
               values={values}
@@ -764,21 +766,42 @@ function StepWhatsApp({
   );
 }
 
-function StepTest({ agentId, agentName }: { agentId?: string; agentName: string }) {
+function StepTest({
+  agentId,
+  agentName,
+  aiStatus,
+}: {
+  agentId?: string;
+  agentName: string;
+  aiStatus?: { provider: string; model: string; connected: boolean };
+}) {
+  const statusLine = (
+    <p className="text-xs text-muted-foreground">
+      AI Provider: <span className="font-medium text-foreground">{aiStatus?.provider || "OpenRouter"}</span>
+      {" · "}Model: <span className="font-mono">{aiStatus?.model || "…"}</span>
+      {" · "}Connection: {aiStatus ? (aiStatus.connected ? "Connected" : "Not configured — set OPENROUTER_API_KEY on the server") : "…"}
+    </p>
+  );
   if (!agentId) {
     return (
       <Card>
-        <CardContent className="p-8 text-center">
+        <CardContent className="flex flex-col gap-2 p-8 text-center">
           <FlaskConical className="mx-auto h-8 w-8 text-muted-foreground" />
           <p className="mt-3 text-sm font-semibold">Save your agent first</p>
           <p className="mx-auto mt-1 max-w-sm text-[13px] text-muted-foreground">
             The live test chat calls the real configured AI provider and needs a saved agent{agentName ? ` (“${agentName}”)` : ""}.
           </p>
+          <div className="mx-auto">{statusLine}</div>
         </CardContent>
       </Card>
     );
   }
-  return <AgentTester agentId={agentId} />;
+  return (
+    <div className="flex flex-col gap-2.5">
+      {statusLine}
+      <AgentTester agentId={agentId} />
+    </div>
+  );
 }
 
 function StepPublish({

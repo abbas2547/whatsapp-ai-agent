@@ -56,7 +56,19 @@ export class OpenRouterProvider implements AIProvider {
         400,
       );
     }
-    return key!.trim();
+    const clean = key!.trim();
+    // Genuine OpenRouter keys start with sk-or-v1-…. Anything else (a pasted
+    // fragment, another provider's key, a truncated value) can never
+    // authenticate — fail here with an actionable message instead of a
+    // cryptic 401 from the gateway after the request is sent.
+    if (!clean.startsWith("sk-or-v1-") || clean.length < 20) {
+      throw new AppError(
+        "OPENROUTER_API_KEY doesn't look like an OpenRouter key (it should start with sk-or-v1-…). Copy the full key from https://openrouter.ai/keys into .env.local and restart the server.",
+        "AI_NOT_CONFIGURED",
+        400,
+      );
+    }
+    return clean;
   }
 
   private baseUrl(): string {
@@ -168,15 +180,27 @@ export class OpenRouterProvider implements AIProvider {
 
     let lastError: { status: number; message: string } | null = null;
 
-    for (const model of this.chatModels()) {
+    // TEMP-DIAGNOSTIC (Phase 8): proves which key/model the RUNNING server
+    // process actually uses. Masked only — first 12 + last 4 chars, never the
+    // full key, never the Authorization header. Compare with the working
+    // PowerShell key's fingerprint; if they differ, the server has stale env
+    // (restart it). Remove the key fragment after confirming.
+    const diagModels = this.chatModels();
+    const diagKey = this.apiKey();
+    console.log(
+      `[AI] provider=openrouter model=${diagModels[0]} key=${diagKey.slice(0, 12)}...${diagKey.slice(-4)} len=${diagKey.length}`,
+    );
+
+    for (const model of diagModels) {
       try {
         return await this.generateWithModel(model, messages, tools, input.temperature);
       } catch (e) {
         const err = e as { status?: number; message?: string };
         const status = err?.status || 0;
         const message = err?.message || "unknown";
-        // Auth / bad-request errors must surface immediately — rotating models won't help.
-        if (status === 401 || status === 403) throw e;
+        // Auth / payment / timeout errors must surface immediately — rotating
+        // models won't help (same key, same account, same slowness budget).
+        if (status === 401 || status === 403 || status === 402 || status === 504) throw e;
         if (status === 400 && !this.isFailoverError(status, message)) throw e;
         lastError = { status, message };
         console.error(`[ai/openrouter] model "${model}" failed (${status}), trying fallback:`, message.slice(0, 220));
@@ -205,19 +229,38 @@ export class OpenRouterProvider implements AIProvider {
   ): Promise<AIGenerateResult> {
     // Inject pending assistant tool_calls back as proper history is handled by
     // the runtime (it appends tool results as role=tool). Here we just send.
-    const res = await fetch(`${this.baseUrl()}/chat/completions`, {
-      method: "POST",
-      headers: this.headers(),
-      body: JSON.stringify({
-        model,
-        messages,
-        tools: tools.length ? tools : undefined,
-        tool_choice: tools.length ? "auto" : undefined,
-        temperature: temperature ?? 0.3,
-        top_p: 0.9,
-        max_tokens: 800,
-      }),
-    });
+    // A hard timeout keeps WhatsApp webhooks responsive — a hung provider
+    // must fail fast so the fallback path (not a retry storm) answers.
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 30_000);
+    let res: Response;
+    try {
+      res = await fetch(`${this.baseUrl()}/chat/completions`, {
+        method: "POST",
+        headers: this.headers(),
+        body: JSON.stringify({
+          model,
+          messages,
+          tools: tools.length ? tools : undefined,
+          tool_choice: tools.length ? "auto" : undefined,
+          temperature: temperature ?? 0.3,
+          top_p: 0.9,
+          max_tokens: 800,
+        }),
+        signal: controller.signal,
+      });
+    } catch (e) {
+      if (e instanceof Error && e.name === "AbortError") {
+        throw new AppError(
+          "The AI took too long to respond. Please try again in a moment.",
+          "AI_TIMEOUT",
+          504,
+        );
+      }
+      throw new AppError("AI request failed before a response was received.", "AI_FAILED", 502);
+    } finally {
+      clearTimeout(timeout);
+    }
 
     if (!res.ok) {
       const text = await res.text().catch(() => "");
@@ -225,24 +268,46 @@ export class OpenRouterProvider implements AIProvider {
         status: number;
       };
       err.status = res.status;
-      // Surface auth problems with a clear actionable message.
+      // Surface auth problems with a clear actionable message. Include
+      // OpenRouter's own short reason (e.g. "User not found.") — its 401/403
+      // messages never echo the key, and the exact reason beats guessing.
       if (res.status === 401 || res.status === 403) {
+        let detail = "";
+        try {
+          const parsed = JSON.parse(text) as { error?: { message?: unknown } };
+          if (typeof parsed?.error?.message === "string") detail = parsed.error.message.slice(0, 150);
+        } catch {
+          // Keep the generic message below.
+        }
         throw new AppError(
-          "OpenRouter rejected the API key (401/403). Check OPENROUTER_API_KEY and its credit/allowances.",
+          `OpenRouter rejected the API key (${res.status}${detail ? `: ${detail}` : ""}). Check OPENROUTER_API_KEY and its credit/allowances.`,
           "AI_NOT_CONFIGURED",
           400,
+        );
+      }
+      // Out of credits / payment required — rotating models cannot help.
+      if (res.status === 402) {
+        throw new AppError(
+          "OpenRouter reported insufficient credits (402). Top up the OpenRouter account.",
+          "AI_PAYMENT_REQUIRED",
+          402,
         );
       }
       throw err;
     }
 
-    const json = (await res.json()) as {
+    let json: {
       choices?: Array<{
         message?: { content?: string | null; tool_calls?: OpenRouterToolCall[] };
         finish_reason?: string;
       }>;
       usage?: { prompt_tokens?: number; completion_tokens?: number };
     };
+    try {
+      json = (await res.json()) as typeof json;
+    } catch {
+      throw new AppError("AI returned an unreadable response.", "AI_FAILED", 502);
+    }
 
     const msg = json.choices?.[0]?.message;
     const text = (msg?.content || "").trim();

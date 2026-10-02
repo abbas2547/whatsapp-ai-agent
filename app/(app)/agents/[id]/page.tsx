@@ -3,6 +3,7 @@ import { notFound, redirect } from "next/navigation";
 import { requireSessionOrRedirect } from "@/app/actions/session";
 import { db } from "@/lib/db";
 import { getAgent } from "@/services/ai/agent.service";
+import { getAIPublicStatus } from "@/services/ai/provider";
 import { listKnowledgeBases } from "@/services/knowledge/knowledge.service";
 import { TOOL_DEFINITIONS } from "@/services/ai/tools/registry";
 import { AgentBuilder, type AgentEditorValue } from "@/components/agents/agent-builder";
@@ -53,6 +54,7 @@ export default async function EditAgentPage({ params }: { params: Promise<{ id: 
     <div className="mx-auto flex max-w-7xl flex-col gap-4">
       <AgentBuilder
         agent={value}
+        aiStatus={getAIPublicStatus()}
         phones={phones}
         knowledge={knowledge.map((k) => ({
           id: k.id,

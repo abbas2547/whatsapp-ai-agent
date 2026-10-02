@@ -65,3 +65,33 @@ export function getAIProviderId(): string {
     return "openrouter";
   }
 }
+
+/**
+ * Safe-for-client AI status: provider name, model name and whether a key is
+ * configured. NEVER includes the key itself — pass this (not env) to UI.
+ */
+export type AIPublicStatus = {
+  provider: string;
+  model: string;
+  connected: boolean;
+};
+
+export function getAIPublicStatus(): AIPublicStatus {
+  const openrouter = env().OPENROUTER_API_KEY;
+  if (!isPlaceholder(openrouter)) {
+    return {
+      provider: "OpenRouter",
+      model: (env().OPENROUTER_MODEL || "").trim() || "openai/gpt-4o-mini",
+      connected: true,
+    };
+  }
+  const gemini = env().GEMINI_API_KEY;
+  if (!isPlaceholder(gemini)) {
+    return {
+      provider: "Gemini (legacy)",
+      model: (env().GEMINI_MODEL || "").trim() || "gemini-2.5-flash",
+      connected: true,
+    };
+  }
+  return { provider: "Not configured", model: "—", connected: false };
+}

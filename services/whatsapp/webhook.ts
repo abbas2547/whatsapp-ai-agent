@@ -157,6 +157,8 @@ async function processIncomingMessage(input: {
     });
   } catch (error) {
     if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
+      // WhatsApp retried a delivery — idempotent skip (logged, no second reply).
+      console.warn(`[whatsapp-webhook] duplicate event skipped: wa:${externalId}`);
       return;
     }
     throw error;

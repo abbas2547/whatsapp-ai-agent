@@ -1,6 +1,6 @@
 import { db } from "@/lib/db";
 import { AppError } from "@/lib/errors";
-import { recordUsage } from "@/services/audit/audit.service";
+import { recordUsage, writeAuditLog } from "@/services/audit/audit.service";
 import { aiConversationAllowance } from "@/services/billing/entitlements";
 import { buildAgentSystemPrompt } from "@/services/ai/agent.service";
 import { getAIProvider, type AIMessage } from "@/services/ai/provider";
@@ -213,9 +213,21 @@ export async function processAgentTurn(input: {
       responseTimeMs: Date.now() - started,
     };
   } catch (error) {
+    // Customer-facing fallback is deliberately generic: never leak raw API
+    // errors, stack traces, keys, or internal details to the chat. Technical
+    // detail goes to the server-side audit log only (sanitized — no prompts,
+    // no user text, no secrets).
+    const code = error instanceof AppError ? error.code : "UNKNOWN";
+    await writeAuditLog({
+      organizationId: input.organizationId,
+      action: "ai.request.failed",
+      entityType: "agent",
+      entityId: input.agentId,
+      metadata: { code, mode: input.mode },
+    });
     return {
       reply:
-        "I ran into a problem answering just now. A teammate can help if you would like.",
+        "Sorry, I'm having trouble responding right now. Please try again in a moment or ask to speak with a team member.",
       toolCalls,
       knowledgeUsed,
       responseTimeMs: Date.now() - started,

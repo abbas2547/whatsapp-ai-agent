@@ -95,14 +95,14 @@ function whatsAppApiError(json: unknown, status: number, fallback: string): AppE
   );
   if (code === 100 && /nonexisting field/i.test(message)) {
     return new AppError(
-      "That Client ID isn't a WhatsApp Business Account (or the token can't access it). Copy the 'WhatsApp Business Account ID' from Meta → your app → WhatsApp → API Setup — not the App ID or Phone Number ID — and make sure the token has the whatsapp_business_management permission.",
+      "That WhatsApp Business Account ID isn't reachable with this token (or the token can't access it). Copy the 'WhatsApp Business Account ID' from Meta → your app → WhatsApp → API Setup — not the App ID or Phone Number ID — and make sure the token has the whatsapp_business_management permission.",
       "WHATSAPP_BAD_WABA_ID",
       400,
     );
   }
   if (code === 190 || /invalid oauth|session.*expir|invalid.*token|expired.*token/i.test(message)) {
     return new AppError(
-      "Your Client Secret (access token) is invalid or expired. Generate a new token in Meta and try again.",
+      "Your Access Token is invalid or expired. Generate a new token in Meta (WhatsApp → API Setup) and try again.",
       "WHATSAPP_BAD_TOKEN",
       400,
     );
@@ -157,7 +157,7 @@ export async function verifyAccessToken(accessToken: string): Promise<{ id: stri
   const id = (json as { id?: unknown } | null)?.id;
   if (typeof id !== "string" || !id) {
     throw new AppError(
-      "Your Client Secret (access token) is invalid or expired. Generate a new token in Meta and try again.",
+      "Your Access Token is invalid or expired. Generate a new token in Meta and try again.",
       "WHATSAPP_BAD_TOKEN",
       400,
     );
@@ -166,8 +166,8 @@ export async function verifyAccessToken(accessToken: string): Promise<{ id: stri
 }
 
 /**
- * Lists phone numbers on a WhatsApp Business Account so callers only need the
- * WABA id (Client ID) + access token (Client Secret) — no manual Phone ID.
+ * Lists phone numbers on a WhatsApp Business Account so a WABA ID + access
+ * token pair can be verified and (for legacy callers) the number discovered.
  */
 export async function fetchWabaPhoneNumbers(wabaId: string, accessToken: string): Promise<WabaPhone[]> {
   const res = await fetch(
@@ -182,7 +182,7 @@ export async function fetchWabaPhoneNumbers(wabaId: string, accessToken: string)
     throw whatsAppApiError(
       json,
       res.status,
-      "Couldn't find WhatsApp numbers for this Client ID. Check the ID and Secret, then try again.",
+      "Couldn't find WhatsApp numbers for this Business Account ID. Check the ID and Access Token, then try again.",
     );
   }
   return json.data || [];

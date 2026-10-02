@@ -7,20 +7,22 @@ import { canConnectWhatsAppNumber } from "@/services/billing/entitlements";
 import { fetchPhoneNumber, fetchWabaPhoneNumbers, resolveAccessToken, sendWhatsAppMessage, verifyAccessToken } from "@/services/whatsapp/client";
 import { writeAuditLog } from "@/services/audit/audit.service";
 
-// Simplified (n8n-style) credentials: only Client ID + Client Secret.
-// Client ID = WABA ID, Client Secret = permanent access token. The phone
-// number is auto-discovered from the WABA so users never type IDs manually.
-// Legacy callers may still pass wabaId/phoneNumberId/accessToken explicitly.
+// Manual 3-credential connect (Meta API Setup values):
+// - Access Token — authorizes API calls (starts with EAA…)
+// - Phone Number ID — tells Meta which WhatsApp number to send from
+// - WABA ID (WhatsApp Business Account ID) — identifies the business account.
+// Legacy callers may pass clientId (= WABA ID) / clientSecret (= access token)
+// and omit phoneNumberId — the number is then auto-discovered from the WABA.
 const connectSchema = z.object({
   wabaId: z.string().min(1).optional(),
   phoneNumberId: z.string().min(1).optional(),
   accessToken: z.string().min(10).optional(),
   displayPhoneNumber: z.string().optional(),
-  clientId: z.string().min(1, "Client ID is required").optional(),
-  clientSecret: z.string().min(10, "Client Secret is required").optional(),
+  clientId: z.string().min(1, "WhatsApp Business Account ID is required").optional(),
+  clientSecret: z.string().min(10, "Access Token is required").optional(),
 }).refine(
   (v) => (v.wabaId || v.clientId) && (v.accessToken || v.clientSecret),
-  { message: "Enter your Client ID and Client Secret to connect." },
+  { message: "Enter your Access Token, Phone Number ID and WhatsApp Business Account ID to connect." },
 );
 
 export async function connectWhatsApp(organizationId: string, userId: string, input: z.infer<typeof connectSchema>) {
@@ -31,7 +33,7 @@ export async function connectWhatsApp(organizationId: string, userId: string, in
   const accessToken = (parsed.accessToken || parsed.clientSecret || "").replace(/\s+/g, "");
   let phoneNumberId = (parsed.phoneNumberId || "").trim();
   if (!wabaId || accessToken.length < 10) {
-    throw new AppError("Enter your Client ID and Client Secret to connect.", "INVALID_INPUT", 400);
+    throw new AppError("Enter your Access Token, Phone Number ID and WhatsApp Business Account ID to connect.", "INVALID_INPUT", 400);
   }
   // Catch the two classic wrong-value mistakes BEFORE any Meta call, with a
   // message that names the exact fix:
@@ -57,7 +59,10 @@ export async function connectWhatsApp(organizationId: string, userId: string, in
   // and a good token that fails later unambiguously means wrong ID or
   // missing permissions, never a vague failure.
   await verifyAccessToken(accessToken);
-  // No phone id supplied (simplified form): pick the first number on the WABA.
+  // All three credentials supplied (normal form): verify each one against
+  // Meta and cross-check that the Phone Number ID belongs to the WABA ID.
+  // No phone id supplied (legacy 2-field form): pick the first number on
+  // the WABA so old callers keep working.
   let discovered: { display_phone_number?: string; verified_name?: string; quality_rating?: string } | null = null;
   if (!phoneNumberId) {
     const numbers = await fetchWabaPhoneNumbers(wabaId, accessToken);
@@ -71,6 +76,37 @@ export async function connectWhatsApp(organizationId: string, userId: string, in
     }
     phoneNumberId = first.id;
     discovered = first;
+  } else {
+    // 1) Phone Number ID must be readable with this token.
+    let phoneLookup: { display_phone_number?: string; verified_name?: string; quality_rating?: string };
+    try {
+      phoneLookup = await fetchPhoneNumber(phoneNumberId, accessToken);
+    } catch (error) {
+      if (error instanceof AppError && (error.code === "WHATSAPP_BAD_TOKEN" || error.code === "WHATSAPP_PERMISSIONS")) throw error;
+      throw new AppError(
+        "That Phone Number ID couldn't be read with this Access Token. Copy the 'Phone Number ID' from Meta → your app → WhatsApp → API Setup (the number you send from — not the WABA ID or App ID) and make sure the token has the whatsapp_business_messaging permission.",
+        "WHATSAPP_BAD_PHONE_ID",
+        400,
+      );
+    }
+    // 2) WABA ID must be readable with this token (throws WHATSAPP_BAD_WABA_ID
+    // with its own fix-it message when the ID is wrong).
+    const numbers = await fetchWabaPhoneNumbers(wabaId, accessToken);
+    // 3) The number must belong to this WABA — catches mixed-up credentials
+    // from different apps/accounts before anything is stored.
+    const match = numbers.find((n) => n.id === phoneNumberId);
+    if (!match) {
+      throw new AppError(
+        "That Phone Number ID doesn't belong to this WhatsApp Business Account ID. Both values must come from the same Meta → app → WhatsApp → API Setup screen (the Send/Receive test panel shows all three together).",
+        "WHATSAPP_ID_MISMATCH",
+        400,
+      );
+    }
+    discovered = {
+      display_phone_number: phoneLookup.display_phone_number || match.display_phone_number,
+      verified_name: phoneLookup.verified_name || match.verified_name,
+      quality_rating: phoneLookup.quality_rating || match.quality_rating,
+    };
   }
   // A phoneNumberId already owned by ANOTHER workspace must never be
   // reassigned by upsert — reject the takeover attempt.
